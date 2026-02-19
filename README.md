@@ -41,13 +41,13 @@ The script is **strictly read-only** against the fridge logs directory — it ne
 ```
 Bluefors Logs/
 ├── 26-02-19/
-│   └── Status_26-02-19.txt
+│   └── Status_26-02-19
 ├── 26-02-18/
-│   └── Status_26-02-18.txt
+│   └── Status_26-02-18
 └── ...
 ```
 
-On each run the script looks for today's date folder (`YY-MM-DD/`) inside `FRIGE_LOGS_DIR`, then reads `Status_YY-MM-DD.txt` from that folder.
+On each run the script looks for today's date folder (`YY-MM-DD/`) inside `FRIGE_LOGS_DIR`, then reads `Status_YY-MM-DD` from that folder.
 
 ## File Overview
 

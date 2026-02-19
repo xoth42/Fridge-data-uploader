@@ -66,7 +66,7 @@ def find_status_file(logs_dir: Path, target_date: date) -> Path:
     Locate today's status file inside its date-stamped subdirectory.
 
     Expected layout (read-only):
-        {logs_dir}/{YY-MM-DD}/Status_{YY-MM-DD}.txt
+        {logs_dir}/{YY-MM-DD}/Status_{YY-MM-DD}
 
     Raises FileNotFoundError with a clear message if the date folder or the
     status file inside it does not exist.
@@ -77,7 +77,7 @@ def find_status_file(logs_dir: Path, target_date: date) -> Path:
         raise FileNotFoundError(
             f"Today's date folder not found: {date_dir}"
         )
-    status_path = date_dir / f"Status_{date_str}.txt"
+    status_path = date_dir / f"Status_{date_str}"
     if not status_path.exists():
         raise FileNotFoundError(
             f"Status file not found inside date folder: {status_path}"
