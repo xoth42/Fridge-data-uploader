@@ -8,8 +8,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
+from metric_metadata import get_description, get_group
+
 # ---------------------------------------------------------------------------
-# Logging — write log to script's own directory, never to the data directory
+# Logging -- write log to script's own directory, never to the data directory
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
 LOG_FILE = SCRIPT_DIR / "push_metrics.log"
@@ -42,8 +44,8 @@ def load_config(env_file: Path) -> dict:
         raise FileNotFoundError(f".env file not found at: {env_file}")
     load_dotenv(dotenv_path=env_file)
 
-    pushgateway_url = _require_env("PUSHGATEWAY_URL")       # e.g. 54.123.45.67:9091
-    machine_name    = _require_env("MACHINE_NAME")           # e.g. fridge-alpha
+    pushgateway_url = _require_env("PUSHGATEWAY_URL")
+    machine_name    = _require_env("MACHINE_NAME")
     job_name        = os.getenv("PUSH_JOB_NAME", "sensor_data")
     logs_dir_raw    = _require_env("FRIGE_LOGS_DIR")
 
@@ -58,7 +60,7 @@ def load_config(env_file: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# File discovery & parsing — STRICTLY READ-ONLY against the logs directory
+# File discovery & parsing -- STRICTLY READ-ONLY against the logs directory
 # ---------------------------------------------------------------------------
 
 def find_status_file(logs_dir: Path, target_date: date) -> Path:
@@ -87,22 +89,28 @@ def find_status_file(logs_dir: Path, target_date: date) -> Path:
 
 def read_last_line(file_path: Path) -> str:
     """
-    Read the last line of a status file.
+    Read the last non-empty line of a file.
 
-    Opened read-only with share-friendly flags so the process that writes
-    the file is never blocked. We read the entire file sequentially rather
-    than seeking — safer on files that are actively appended to on Windows.
+    Opened read-only; we read sequentially to be safe on files that are
+    actively appended to on Windows.
     """
     last_line = ""
     with open(file_path, "r", encoding="utf-8") as handle:
         for line in handle:
-            last_line = line
+            stripped = line.strip()
+            if stripped:
+                last_line = stripped
     if not last_line:
-        raise ValueError(f"Status file is empty: {file_path}")
-    return last_line.strip()
+        raise ValueError(f"File is empty: {file_path}")
+    return last_line
 
 
 def parse_status_line(line: str) -> dict[str, float]:
+    """Parse one CSV line from the Status file.
+
+    Format: date,time,key,value,key,value,...
+    Returns a dict of raw key -> float value.
+    """
     parts = [part.strip() for part in line.split(",")]
     if len(parts) < 4 or (len(parts) - 2) % 2 != 0:
         raise ValueError(f"Status line has invalid format: {line}")
@@ -122,6 +130,220 @@ def parse_status_line(line: str) -> dict[str, float]:
     return values
 
 
+# Map raw status keys to Prometheus-compliant metric names (with unit suffix).
+_STATUS_KEY_TO_METRIC: dict[str, str] = {
+    "cpahp":         "cpahp_mbar",
+    "cpahpa":        "cpahpa_mbar",
+    "cpalp":         "cpalp_mbar",
+    "cpalpa":        "cpalpa_mbar",
+    "cpadp":         "cpadp_mbar",
+    "cpatempwi":     "cpatempwi_celsius",
+    "cpatempwo":     "cpatempwo_celsius",
+    "cpatempo":      "cpatempo_celsius",
+    "cpatemph":      "cpatemph_celsius",
+    "cpacurrent":    "cpacurrent_amperes",
+    "cpahours":      "cpahours_hours",
+    "tc400actualspd": "tc400actualspd_hz",
+    "tc400drvpower": "tc400drvpower_watts",
+    "nxdspt":        "nxdspt",
+    "nxdsct":        "nxdsct",
+    "nxdsf":         "nxdsf_hz",
+    "nxdstrs":       "nxdstrs_seconds",
+    "ctrl_pres":     "ctrl_pres_mbar",
+}
+
+# Regex to detect CH* T / CH* R filenames: e.g. "CH1 T 26-02-19.log"
+_CH_FILE_RE = re.compile(
+    r"^CH(\d+)\s+(T|R)\s+\d{2}-\d{2}-\d{2}\.log$",
+    re.IGNORECASE,
+)
+
+
+def parse_channel_file(filepath: Path) -> float:
+    """Parse a CH* T or CH* R file and return the latest value.
+
+    Format: date,time,value
+    """
+    last = read_last_line(filepath)
+    parts = last.split(",")
+    if len(parts) < 3:
+        raise ValueError(f"CH file line too short: {last!r}")
+    return float(parts[2].strip())
+
+
+def parse_flowmeter_file(filepath: Path) -> float:
+    """Parse the Flowmeter file and return the latest flow value in mmol/s.
+
+    Format: date,time,value
+    """
+    last = read_last_line(filepath)
+    parts = last.split(",")
+    if len(parts) < 3:
+        raise ValueError(f"Flowmeter line too short: {last!r}")
+    return float(parts[2].strip())
+
+
+def parse_heaters_file(filepath: Path) -> dict[str, float]:
+    """Parse the Heaters file and return power per heater channel.
+
+    Format: date,time,id,power,id,power,...
+    Returns: {"heater_0_watts": 0.0, "heater_1_watts": 0.008, ...}
+    """
+    last = read_last_line(filepath)
+    parts = [p.strip() for p in last.split(",")]
+    # parts[0]=date, parts[1]=time, then id/power pairs from index 2
+    result: dict[str, float] = {}
+    i = 2
+    while i + 1 < len(parts):
+        heater_id = parts[i]
+        power_text = parts[i + 1]
+        metric_name = f"heater_{heater_id}_watts"
+        result[metric_name] = float(power_text)
+        i += 2
+    if not result:
+        raise ValueError(f"No heater pairs found in line: {last!r}")
+    return result
+
+
+def parse_channels_file(filepath: Path) -> dict[str, float]:
+    """Parse the Channels file and return valve/device on-off states.
+
+    Format: date,time,0,name,state,name,state,...
+    Returns: {"valve_v1": 1.0, "valve_v2": 0.0, ...}
+
+    Hyphens in valve names are replaced with underscores so that the
+    resulting metric names are Prometheus-compliant.
+    """
+    last = read_last_line(filepath)
+    parts = [p.strip() for p in last.split(",")]
+    # parts[0]=date, parts[1]=time, parts[2]=leading zero, name/state from 3
+    result: dict[str, float] = {}
+    i = 3
+    while i + 1 < len(parts):
+        raw_name = parts[i]
+        state_text = parts[i + 1]
+        safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", raw_name)
+        metric_name = f"valve_{safe_name}"
+        result[metric_name] = float(state_text)
+        i += 2
+    if not result:
+        raise ValueError(f"No valve pairs found in line: {last!r}")
+    return result
+
+
+def parse_maxigauge_file(filepath: Path) -> dict[str, float]:
+    """Parse the maxigauge file and return pressures for each channel.
+
+    Format: date,time,CH1,name,status,pressure,unk1,unk2,CH2,...
+    Each channel block is 6 fields: label, name, status, pressure, unk1, unk2.
+    Returns: {"maxigauge_ch1_pressure_mbar": 2.27e-06, ...}
+    """
+    last = read_last_line(filepath)
+    parts = [p.strip() for p in last.split(",")]
+    # Channel blocks start at index 2; each block is 6 fields wide.
+    result: dict[str, float] = {}
+    block_start = 2
+    while block_start + 5 < len(parts):
+        ch_label = parts[block_start].lower()          # "ch1", "ch2", ...
+        pressure_text = parts[block_start + 3]
+        metric_name = f"maxigauge_{ch_label}_pressure_mbar"
+        result[metric_name] = float(pressure_text)
+        block_start += 6
+    if not result:
+        raise ValueError(f"No maxigauge channels parsed from line: {last!r}")
+    return result
+
+
+def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
+    """Collect metrics from ALL Bluefors log files for the given date.
+
+    Each file parser is wrapped in an independent try/except so that a
+    missing or malformed file never prevents the other files from being read.
+
+    Returns a flat dict of fully-qualified metric name -> float value where
+    each key already contains the appropriate unit suffix.
+    """
+    date_str = target_date.strftime("%y-%m-%d")
+    date_dir = logs_dir / date_str
+
+    if not date_dir.exists() or not date_dir.is_dir():
+        raise FileNotFoundError(f"Today's date folder not found: {date_dir}")
+
+    all_metrics: dict[str, float] = {}
+
+    # ---- Status file ------------------------------------------------
+    status_path = date_dir / f"Status_{date_str}.log"
+    try:
+        raw_status = parse_status_line(read_last_line(status_path))
+        for raw_key, value in raw_status.items():
+            metric_name = _STATUS_KEY_TO_METRIC.get(raw_key, raw_key)
+            all_metrics[metric_name] = value
+        log.info("Status file: parsed %d metric(s)", len(raw_status))
+    except Exception as exc:
+        log.error("Status file error (%s): %s", status_path.name, exc)
+
+    # ---- CH* T and CH* R files (dynamic discovery) ------------------
+    try:
+        all_filenames = os.listdir(date_dir)
+    except Exception as exc:
+        log.error("Cannot list date folder %s: %s", date_dir, exc)
+        all_filenames = []
+
+    for filename in sorted(all_filenames):
+        m = _CH_FILE_RE.match(filename)
+        if not m:
+            continue
+        ch_num = m.group(1)
+        ch_type = m.group(2).upper()
+        if ch_type == "T":
+            metric_name = f"ch{ch_num}_t_kelvin"
+        else:
+            metric_name = f"ch{ch_num}_r_ohms"
+        filepath = date_dir / filename
+        try:
+            all_metrics[metric_name] = parse_channel_file(filepath)
+            log.info("Channel file %s -> %s", filename, metric_name)
+        except Exception as exc:
+            log.error("Channel file error (%s): %s", filename, exc)
+
+    # ---- Flowmeter --------------------------------------------------
+    flowmeter_path = date_dir / f"Flowmeter {date_str}.log"
+    try:
+        all_metrics["flowmeter_mmol_per_s"] = parse_flowmeter_file(flowmeter_path)
+        log.info("Flowmeter file: parsed flowmeter_mmol_per_s")
+    except Exception as exc:
+        log.error("Flowmeter file error (%s): %s", flowmeter_path.name, exc)
+
+    # ---- Heaters ----------------------------------------------------
+    heaters_path = date_dir / f"Heaters {date_str}.log"
+    try:
+        heater_metrics = parse_heaters_file(heaters_path)
+        all_metrics.update(heater_metrics)
+        log.info("Heaters file: parsed %d heater metric(s)", len(heater_metrics))
+    except Exception as exc:
+        log.error("Heaters file error (%s): %s", heaters_path.name, exc)
+
+    # ---- Channels (valves) ------------------------------------------
+    channels_path = date_dir / f"Channels {date_str}.log"
+    try:
+        valve_metrics = parse_channels_file(channels_path)
+        all_metrics.update(valve_metrics)
+        log.info("Channels file: parsed %d valve metric(s)", len(valve_metrics))
+    except Exception as exc:
+        log.error("Channels file error (%s): %s", channels_path.name, exc)
+
+    # ---- Maxigauge --------------------------------------------------
+    maxigauge_path = date_dir / f"maxigauge {date_str}.log"
+    try:
+        gauge_metrics = parse_maxigauge_file(maxigauge_path)
+        all_metrics.update(gauge_metrics)
+        log.info("Maxigauge file: parsed %d pressure metric(s)", len(gauge_metrics))
+    except Exception as exc:
+        log.error("Maxigauge file error (%s): %s", maxigauge_path.name, exc)
+
+    return all_metrics
+
+
 # ---------------------------------------------------------------------------
 # Prometheus push
 # ---------------------------------------------------------------------------
@@ -138,22 +360,29 @@ def _safe_metric_name(raw: str) -> str:
 
 
 def push_metrics(
-    status_values: dict[str, float],
+    all_metrics: dict[str, float],
     pushgateway_url: str,
     job_name: str,
     machine_name: str,
 ) -> None:
-    """Push every key/value pair as a Gauge to the Pushgateway."""
+    """Push every key/value pair as a Gauge to the Pushgateway.
+
+    Uses get_description() for the HELP text and get_group() for the
+    subsystem label so each metric can be filtered in Grafana.
+    """
     registry = CollectorRegistry()
 
-    for raw_key, value in status_values.items():
-        safe_name = _safe_metric_name(raw_key)
+    for metric_key, value in all_metrics.items():
+        safe_name = _safe_metric_name(metric_key)
+        description = get_description(metric_key)
+        group = get_group(metric_key)
         gauge = Gauge(
             safe_name,
-            f"Sensor reading: {raw_key}",
+            description,
+            ["subsystem"],
             registry=registry,
         )
-        gauge.set(value)
+        gauge.labels(subsystem=group).set(value)
 
     heartbeat = Gauge(
         "last_push_timestamp_seconds",
@@ -184,23 +413,24 @@ def main() -> int:
         log.error("Configuration error: %s", exc)
         return 1
 
-    # ---- Phase 2: read the latest status values (READ-ONLY) ------------
+    # ---- Phase 2: collect metrics from all log files (READ-ONLY) -------
     try:
-        status_path = find_status_file(cfg["logs_dir"], date.today())
-        last_line = read_last_line(status_path)
-        status_values = parse_status_line(last_line)
+        all_metrics = collect_all_metrics(cfg["logs_dir"], date.today())
     except Exception as exc:
         log.error("Data collection error: %s", exc)
         return 1
 
     log.info("FRIGE_LOGS_DIR resolved to: %s", cfg["logs_dir"])
-    log.info("Status file: %s", status_path)
-    log.info("Parsed %d metric(s): %s", len(status_values), list(status_values.keys()))
+    log.info("Collected %d metric(s) total: %s", len(all_metrics), list(all_metrics.keys()))
+
+    if not all_metrics:
+        log.error("No metrics collected -- nothing to push")
+        return 1
 
     # ---- Phase 3: push to Prometheus Pushgateway -----------------------
     try:
         push_metrics(
-            status_values,
+            all_metrics,
             pushgateway_url=cfg["pushgateway_url"],
             machine_name=cfg["machine_name"],
             job_name=cfg["job_name"],
@@ -211,7 +441,7 @@ def main() -> int:
 
     log.info(
         "Successfully pushed %d metric(s) to %s",
-        len(status_values),
+        len(all_metrics),
         cfg["pushgateway_url"],
     )
     return 0
