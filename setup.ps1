@@ -18,7 +18,7 @@ Write-Host ""
 Write-Host "--- Test run ---" -ForegroundColor Cyan
 python "$ScriptDir\push_metrics.py"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Test run returned errors — fix .env and try again." -ForegroundColor Red
+    Write-Host "Test run returned errors -- fix .env and try again." -ForegroundColor Red
     exit 1
 }
 
@@ -39,14 +39,14 @@ if ($existing) {
 
 $Action  = New-ScheduledTaskAction `
     -Execute $PythonExe `
-    -Argument "`"$ScriptPath`"" `
+    -Argument ('"' + $ScriptPath + '"') `
     -WorkingDirectory $ScriptDir
 
 $Trigger = New-ScheduledTaskTrigger `
     -Once `
     -At (Get-Date).Date `
     -RepetitionInterval (New-TimeSpan -Minutes 1) `
-    -RepetitionDuration (New-TimeSpan -Days 3650)     # ~10 years ≈ indefinitely
+    -RepetitionDuration (New-TimeSpan -Days 3650)     # ~10 years (~indefinitely)
 
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
