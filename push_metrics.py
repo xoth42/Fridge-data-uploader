@@ -61,21 +61,28 @@ def load_config(env_file: Path) -> dict:
 # File discovery & parsing — STRICTLY READ-ONLY against the logs directory
 # ---------------------------------------------------------------------------
 
-def list_files_in_dir(directory: Path) -> list[str]:
-    """List filenames in directory. Read-only — no writes, no temp files."""
-    if not directory.exists():
-        raise FileNotFoundError(f"Directory does not exist: {directory}")
-    if not directory.is_dir():
-        raise NotADirectoryError(f"Path is not a directory: {directory}")
-    # os.listdir is a pure read syscall — no locks, no handles held open
-    return os.listdir(directory)
+def find_status_file(logs_dir: Path, target_date: date) -> Path:
+    """
+    Locate today's status file inside its date-stamped subdirectory.
 
+    Expected layout (read-only):
+        {logs_dir}/{YY-MM-DD}/Status_{YY-MM-DD}.txt
 
-def find_status_file(files: list[str], logs_dir: Path, target_date: date) -> Path | None:
-    status_name = f"Status_{target_date:%y-%m-%d}.txt"
-    if status_name in files:
-        return logs_dir / status_name
-    return None
+    Raises FileNotFoundError with a clear message if the date folder or the
+    status file inside it does not exist.
+    """
+    date_str = target_date.strftime("%y-%m-%d")
+    date_dir = logs_dir / date_str
+    if not date_dir.exists() or not date_dir.is_dir():
+        raise FileNotFoundError(
+            f"Today's date folder not found: {date_dir}"
+        )
+    status_path = date_dir / f"Status_{date_str}.txt"
+    if not status_path.exists():
+        raise FileNotFoundError(
+            f"Status file not found inside date folder: {status_path}"
+        )
+    return status_path
 
 
 def read_last_line(file_path: Path) -> str:
@@ -179,10 +186,7 @@ def main() -> int:
 
     # ---- Phase 2: read the latest status values (READ-ONLY) ------------
     try:
-        files = list_files_in_dir(cfg["logs_dir"])
-        status_path = find_status_file(files, cfg["logs_dir"], date.today())
-        if not status_path:
-            raise FileNotFoundError("Today's status file was not found")
+        status_path = find_status_file(cfg["logs_dir"], date.today())
         last_line = read_last_line(status_path)
         status_values = parse_status_line(last_line)
     except Exception as exc:
@@ -190,7 +194,7 @@ def main() -> int:
         return 1
 
     log.info("FRIGE_LOGS_DIR resolved to: %s", cfg["logs_dir"])
-    log.info("Status file: %s", status_path.name)
+    log.info("Status file: %s", status_path)
     log.info("Parsed %d metric(s): %s", len(status_values), list(status_values.keys()))
 
     # ---- Phase 3: push to Prometheus Pushgateway -----------------------

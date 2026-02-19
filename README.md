@@ -36,6 +36,19 @@ Reads fridge sensor data from status log files and pushes metrics to a Prometheu
 
 The script is **strictly read-only** against the fridge logs directory — it never writes, locks, or modifies anything there.
 
+`FRIGE_LOGS_DIR` should point to the **top-level Bluefors Logs folder** (e.g. `C:\Lab\Bluefors Logs`). The script automatically navigates the date-based subdirectory structure that Bluefors creates:
+
+```
+Bluefors Logs/
+├── 26-02-19/
+│   └── Status_26-02-19.txt
+├── 26-02-18/
+│   └── Status_26-02-18.txt
+└── ...
+```
+
+On each run the script looks for today's date folder (`YY-MM-DD/`) inside `FRIGE_LOGS_DIR`, then reads `Status_YY-MM-DD.txt` from that folder.
+
 ## File Overview
 
 | File | Purpose |
