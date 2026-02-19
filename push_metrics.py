@@ -194,7 +194,7 @@ def main() -> int:
         return 1
 
     log.info("FRIGE_LOGS_DIR resolved to: %s", cfg["logs_dir"])
-    log.info("Status file: %s", status_path.name)
+    log.info("Status file: %s", status_path)
     log.info("Parsed %d metric(s): %s", len(status_values), list(status_values.keys()))
 
     # ---- Phase 3: push to Prometheus Pushgateway -----------------------
