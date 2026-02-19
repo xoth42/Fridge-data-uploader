@@ -41,9 +41,9 @@ The script is **strictly read-only** against the fridge logs directory — it ne
 ```
 Bluefors Logs/
 ├── 26-02-19/
-│   └── Status_26-02-19
+│   └── Status_26-02-19.log
 ├── 26-02-18/
-│   └── Status_26-02-18
+│   └── Status_26-02-18.log
 └── ...
 ```
 
