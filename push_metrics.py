@@ -63,42 +63,17 @@ def load_config(env_file: Path) -> dict:
 # File discovery & parsing -- STRICTLY READ-ONLY against the logs directory
 # ---------------------------------------------------------------------------
 
-def find_status_file(logs_dir: Path, target_date: date) -> Path:
-    """
-    Locate today's status file inside its date-stamped subdirectory.
-
-    Expected layout (read-only):
-        {logs_dir}/{YY-MM-DD}/Status_{YY-MM-DD}.log
-
-    Raises FileNotFoundError with a clear message if the date folder or the
-    status file inside it does not exist.
-    """
-    date_str = target_date.strftime("%y-%m-%d")
-    date_dir = logs_dir / date_str
-    if not date_dir.exists() or not date_dir.is_dir():
-        raise FileNotFoundError(
-            f"Today's date folder not found: {date_dir}"
-        )
-    status_path = date_dir / f"Status_{date_str}.log"
-    if not status_path.exists():
-        raise FileNotFoundError(
-            f"Status file not found inside date folder: {status_path}"
-        )
-    return status_path
-
-
 def read_last_line(file_path: Path) -> str:
     """
-    Read the last non-empty line of a file.
+    Read the last line of a file.
 
     Opened read-only; we read sequentially to be safe on files that are
-    actively appended to on Windows.  Only the returned line is stripped.
+    actively appended to on Windows.  The returned line is stripped.
     """
     last_line = ""
     with open(file_path, "r", encoding="utf-8") as handle:
         for line in handle:
-            if line:
-                last_line = line
+            last_line = line
     if not last_line:
         raise ValueError(f"File is empty: {file_path}")
     return last_line.strip()
