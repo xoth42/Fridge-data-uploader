@@ -97,7 +97,7 @@ def read_last_line(file_path: Path) -> str:
     last_line = ""
     with open(file_path, "r", encoding="utf-8") as handle:
         for line in handle:
-            if line.strip():
+            if line:
                 last_line = line
     if not last_line:
         raise ValueError(f"File is empty: {file_path}")
@@ -223,7 +223,10 @@ def parse_maxigauge_file(filepath: Path) -> dict[str, float]:
     while block_start + 5 < len(parts):
         ch_label = parts[block_start].lower()          # "ch1", "ch2", ...
         pressure_text = parts[block_start + 3]
-        metric_name = f"maxigauge_{ch_label}_pressure_mbar"
+        raw_key = f"maxigauge_{ch_label}"              # e.g. "maxigauge_ch1"
+        metric_name = get_metric_name_for_raw_key(raw_key)
+        if metric_name == raw_key:
+            metric_name = f"{raw_key}_pressure_mbar"  # fallback for unlisted channels
         result[metric_name] = float(pressure_text)
         block_start += 6
     if not result:
@@ -271,18 +274,21 @@ def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
         if not m:
             continue
         ch_num = m.group(1)
-        ch_type = m.group(2).upper()
-        if ch_type == "T":
-            metric_name = f"ch{ch_num}_t_kelvin"
-        else:
-            metric_name = f"ch{ch_num}_r_ohms"
+        ch_type = m.group(2).lower()
+        # Build raw key (e.g. "ch1_t", "ch6_r") and resolve to output metric name.
+        raw_key = f"ch{ch_num}_{ch_type}"
+        metric_name = get_metric_name_for_raw_key(raw_key)
+        # Fallback for channels not yet in metadata: append unit suffix directly.
+        if metric_name == raw_key:
+            unit = "kelvin" if ch_type == "t" else "ohms"
+            metric_name = f"{raw_key}_{unit}"
         filepath = date_dir / filename
         try:
             all_metrics[metric_name] = parse_channel_file(filepath)
             log.info("Channel file %s -> %s", filename, metric_name)
             # CH6 T and CH9 T store sub-1K (mK-range) values as raw K.
             # The description in metric_metadata notes this; no conversion applied.
-            if ch_type == "T" and ch_num in ("6", "9"):
+            if ch_type == "t" and ch_num in ("6", "9"):
                 log.info(
                     "  Note: %s is mK-range (value=%.3e K) -- raw K stored, see metric description",
                     metric_name,
@@ -294,8 +300,9 @@ def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
     # ---- Flowmeter --------------------------------------------------
     flowmeter_path = date_dir / f"Flowmeter {date_str}.log"
     try:
-        all_metrics["flowmeter_mmol_per_s"] = parse_flowmeter_file(flowmeter_path)
-        log.info("Flowmeter file: parsed flowmeter_mmol_per_s")
+        metric_name = get_metric_name_for_raw_key("flowmeter")
+        all_metrics[metric_name] = parse_flowmeter_file(flowmeter_path)
+        log.info("Flowmeter file: parsed %s", metric_name)
     except Exception as exc:
         log.error("Flowmeter file error (%s): %s", flowmeter_path.name, exc)
 
