@@ -1,0 +1,85 @@
+========================================================================
+  BLUEFORS DATA COLLECTION REPORT
+  Date folder: C:\Users\WangLab\Bluefors logs\26-02-19
+  Date: 2026-02-19
+  Total files found: 15
+========================================================================
+
+[001] File: CH1 R 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.049400e+01
+      LAST  LINE: 19-02-26,17:15:22,5.737000e+00
+
+[002] File: CH1 T 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,5.392937e+01
+      LAST  LINE: 19-02-26,17:15:22,4.030615e+01
+
+[003] File: CH2 R 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.653160e+02
+      LAST  LINE: 19-02-26,17:15:22,2.945590e+02
+
+[004] File: CH2 T 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,9.311332e+00
+      LAST  LINE: 19-02-26,17:15:22,2.795993e+00
+
+[005] File: CH5 R 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.152040e+02
+      LAST  LINE: 19-02-26,17:15:22,5.720040e+02
+
+[006] File: CH5 T 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.993505e+01
+      LAST  LINE: 19-02-26,17:15:22,8.707260e-01
+
+[007] File: CH6 R 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.200273e+03
+      LAST  LINE: 19-02-26,17:15:22,1.212384e+04
+
+[008] File: CH6 T 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.269812e+01
+      LAST  LINE: 19-02-26,17:15:22,7.292000e-03
+
+[009] File: CH9 R 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,1.033832e+03
+      LAST  LINE: 19-02-26,17:15:22,1.026834e+04
+
+[010] File: CH9 T 26-02-19.log
+      Size: 33152 bytes
+      FIRST LINE: 19-02-26,00:00:22,8.807885e+01
+      LAST  LINE: 19-02-26,17:15:22,1.227400e-02
+
+[011] File: Channels 26-02-19.log
+      Size: 289408 bytes
+      FIRST LINE: 19-02-26,00:00:22,0,v1,1,v2,0,v3,0,v4,1,v5,0,v6,0,v7,1,v8,0,v9,1,v10,1,v11,0,v12,0,v13,1,v14,0,v15,0,v16,0,v17,0,v18,0,v19,0,v20,0,v21,0,v22,0,v23,0,turbo1,0,turbo2,0,scroll1,1,scroll2,0,compressor,0,pulsetube,1,hs-still,1,hs-mc,1,ext,0
+      LAST  LINE: 19-02-26,17:15:22,0,v1,1,v2,0,v3,0,v4,1,v5,0,v6,0,v7,1,v8,0,v9,1,v10,1,v11,0,v12,0,v13,0,v14,0,v15,0,v16,0,v17,0,v18,0,v19,0,v20,0,v21,0,v22,0,v23,0,turbo1,1,turbo2,0,scroll1,1,scroll2,0,compressor,0,pulsetube,1,hs-still,0,hs-mc,0,ext,1
+
+[012] File: Flowmeter 26-02-19.log
+      Size: 29008 bytes
+      FIRST LINE: 19-02-26,00:00:22,0.036901
+      LAST  LINE: 19-02-26,17:15:22,0.465553
+
+[013] File: Heaters 26-02-19.log
+      Size: 42476 bytes
+      FIRST LINE: 19-02-26,00:00:22,0,0.00e+00,1,8.00e-03
+      LAST  LINE: 19-02-26,17:15:22,0,0.00e+00,1,8.00e-03
+
+[014] File: Status_26-02-19.log
+      Size: 1386169 bytes
+      FIRST LINE: 19-02-26,00:00:22,nxdsf,3.000000e+01,nxdspt,3.031500e+02,nxdsct,3.271500e+02,nxdst,7.171200e+07,nxdsbs,8.596440e+07,nxdstrs,7.124400e+06,ctrl_pres_ok,1.000000e+00,ctrl_pres,1.000000e+00,cpastate,3.000000e+00,cparun,1.000000e+00,cpawarn,-0.000000e+00,cpaerr,-0.000000e+00,cpatempwi,1.892833e+01,cpatempwo,2.898722e+01,cpatempo,3.477556e+01,cpatemph,6.792222e+01,cpalp,8.021869e+01,cpalpa,8.313063e+01,cpahp,3.186183e+02,cpahpa,3.184270e+02,cpadp,2.353022e+02,cpacurrent,1.616795e+01,cpahours,2.337020e+04,cpascale,0.000000e+00,cpasn,1.166700e+04,ctr_pressure_ok,1.000000e+00,pcu_pv,0.000000e+00,pcu_gv,1.000000e+00,pcu_pos,1.130000e+02,pcu_dst,0.000000e+00,pcu_probe_out,0.000000e+00,pcu_probe_in,0.000000e+00,pcu_torque_limit,0.000000e+00,pcu_destination_set,0.000000e+00,pcu_motor_off,0.000000e+00,pcu_pos_compl,0.000000e+00,pcu_going_home,0.000000e+00,pcu_no_ctrl_pressure,1.000000e+00,pcu_integrity_ok,0.000000e+00,pcu_maintenance_mode,0.000000e+00,pcu_probe_mounted,1.000000e+00,pcu_vacuum,1.000000e+00,pcu_remote,1.000000e+00,tc400actualspd,0.000000e+00,tc400drvpower,0.000000e+00,tc400ovtempelec,0.000000e+00,tc400ovtemppum,0.000000e+00,tc400heating,0.000000e+00,tc400pumpaccel,0.000000e+00,tc400pumpstatn,1.000000e+00,tc400remoteprio,0.000000e+00,tc400spdswptatt,0.000000e+00,tc400setspdatt,0.000000e+00,tc400standby,0.000000e+00
+      LAST  LINE: 19-02-26,17:15:22,nxdsf,3.000000e+01,nxdspt,3.041500e+02,nxdsct,3.231500e+02,nxdst,7.177320e+07,nxdsbs,8.590320e+07,nxdstrs,7.063200e+06,ctrl_pres_ok,1.000000e+00,ctrl_pres,1.000000e+00,cpastate,3.000000e+00,cparun,1.000000e+00,cpawarn,-0.000000e+00,cpaerr,-0.000000e+00,cpatempwi,1.849667e+01,cpatempwo,2.809333e+01,cpatempo,3.334389e+01,cpatemph,6.781000e+01,cpalp,8.244820e+01,cpalpa,8.005667e+01,cpahp,3.029142e+02,cpahpa,3.009461e+02,cpadp,2.208917e+02,cpacurrent,1.545023e+01,cpahours,2.338750e+04,cpascale,0.000000e+00,cpasn,1.166700e+04,ctr_pressure_ok,1.000000e+00,pcu_pv,0.000000e+00,pcu_gv,1.000000e+00,pcu_pos,2.099000e+01,pcu_dst,0.000000e+00,pcu_probe_out,0.000000e+00,pcu_probe_in,0.000000e+00,pcu_torque_limit,0.000000e+00,pcu_destination_set,0.000000e+00,pcu_motor_off,1.000000e+00,pcu_pos_compl,0.000000e+00,pcu_going_home,0.000000e+00,pcu_no_ctrl_pressure,1.000000e+00,pcu_integrity_ok,0.000000e+00,pcu_maintenance_mode,0.000000e+00,pcu_probe_mounted,1.000000e+00,pcu_vacuum,1.000000e+00,pcu_remote,1.000000e+00,tc400actualspd,8.200000e+02,tc400drvpower,2.000000e+02,tc400ovtempelec,0.000000e+00,tc400ovtemppum,0.000000e+00,tc400heating,0.000000e+00,tc400pumpaccel,0.000000e+00,tc400pumpstatn,1.000000e+00,tc400remoteprio,0.000000e+00,tc400spdswptatt,0.000000e+00,tc400setspdatt,0.000000e+00,tc400standby,0.000000e+00
+
+[015] File: maxigauge 26-02-19.log
+      Size: 169764 bytes
+      FIRST LINE: 19-02-26,00:00:22,CH1,        ,1,2.27e-06,0,1,CH2,        ,1,6.24e-01,0,1,CH3,        ,1,7.58e+02,0,1,CH4,        ,1,7.56e+02,0,1,CH5,        ,1,7.57e+02,0,1,CH6,        ,1,6.63e-03,0,1,
+      LAST  LINE: 19-02-26,17:15:22,CH1,        ,1,2.27e-06,0,1,CH2,        ,1,4.49e-02,0,1,CH3,        ,1,4.01e+02,0,1,CH4,        ,1,4.23e+02,0,1,CH5,        ,1,1.30e+00,0,1,CH6,        ,1,1.98e-01,0,1,
+
+========================================================================
+  END OF REPORT
+========================================================================
