@@ -73,7 +73,8 @@ def read_last_line(file_path: Path) -> str:
     last_line = ""
     with open(file_path, "r", encoding="utf-8") as handle:
         for line in handle:
-            last_line = line
+            if line.strip():
+                last_line = line
     if not last_line:
         raise ValueError(f"File is empty: {file_path}")
     return last_line.strip()
