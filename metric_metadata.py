@@ -266,6 +266,21 @@ METRIC_METADATA: dict[str, dict] = {
 }
 
 
+def get_metric_name_for_raw_key(raw_key: str) -> str:
+    """Map a raw Status file key (e.g. 'cpahpa') to its metric name (e.g. 'cpahpa_mbar').
+
+    Looks for an exact match first, then for any metadata entry whose name
+    equals raw_key + '_' + suffix, and returns that full name.  Falls back to
+    raw_key unchanged so unknown keys are still pushed.
+    """
+    if raw_key in METRIC_METADATA:
+        return raw_key
+    for metric_name in METRIC_METADATA:
+        if metric_name.startswith(raw_key + "_"):
+            return metric_name
+    return raw_key
+
+
 def get_description(key: str) -> str:
     """Return the human-readable description for a metric key.
 

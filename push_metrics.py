@@ -8,7 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
-from metric_metadata import get_description, get_group
+from metric_metadata import get_description, get_group, get_metric_name_for_raw_key
 
 # ---------------------------------------------------------------------------
 # Logging -- write log to script's own directory, never to the data directory
@@ -92,17 +92,16 @@ def read_last_line(file_path: Path) -> str:
     Read the last non-empty line of a file.
 
     Opened read-only; we read sequentially to be safe on files that are
-    actively appended to on Windows.
+    actively appended to on Windows.  Only the returned line is stripped.
     """
     last_line = ""
     with open(file_path, "r", encoding="utf-8") as handle:
         for line in handle:
-            stripped = line.strip()
-            if stripped:
-                last_line = stripped
+            if line.strip():
+                last_line = line
     if not last_line:
         raise ValueError(f"File is empty: {file_path}")
-    return last_line
+    return last_line.strip()
 
 
 def parse_status_line(line: str) -> dict[str, float]:
@@ -129,28 +128,6 @@ def parse_status_line(line: str) -> dict[str, float]:
             ) from exc
     return values
 
-
-# Map raw status keys to Prometheus-compliant metric names (with unit suffix).
-_STATUS_KEY_TO_METRIC: dict[str, str] = {
-    "cpahp":         "cpahp_mbar",
-    "cpahpa":        "cpahpa_mbar",
-    "cpalp":         "cpalp_mbar",
-    "cpalpa":        "cpalpa_mbar",
-    "cpadp":         "cpadp_mbar",
-    "cpatempwi":     "cpatempwi_celsius",
-    "cpatempwo":     "cpatempwo_celsius",
-    "cpatempo":      "cpatempo_celsius",
-    "cpatemph":      "cpatemph_celsius",
-    "cpacurrent":    "cpacurrent_amperes",
-    "cpahours":      "cpahours_hours",
-    "tc400actualspd": "tc400actualspd_hz",
-    "tc400drvpower": "tc400drvpower_watts",
-    "nxdspt":        "nxdspt",
-    "nxdsct":        "nxdsct",
-    "nxdsf":         "nxdsf_hz",
-    "nxdstrs":       "nxdstrs_seconds",
-    "ctrl_pres":     "ctrl_pres_mbar",
-}
 
 # Regex to detect CH* T / CH* R filenames: e.g. "CH1 T 26-02-19.log"
 _CH_FILE_RE = re.compile(
@@ -276,7 +253,7 @@ def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
     try:
         raw_status = parse_status_line(read_last_line(status_path))
         for raw_key, value in raw_status.items():
-            metric_name = _STATUS_KEY_TO_METRIC.get(raw_key, raw_key)
+            metric_name = get_metric_name_for_raw_key(raw_key)
             all_metrics[metric_name] = value
         log.info("Status file: parsed %d metric(s)", len(raw_status))
     except Exception as exc:
@@ -303,6 +280,14 @@ def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
         try:
             all_metrics[metric_name] = parse_channel_file(filepath)
             log.info("Channel file %s -> %s", filename, metric_name)
+            # CH6 T and CH9 T store sub-1K (mK-range) values as raw K.
+            # The description in metric_metadata notes this; no conversion applied.
+            if ch_type == "T" and ch_num in ("6", "9"):
+                log.info(
+                    "  Note: %s is mK-range (value=%.3e K) -- raw K stored, see metric description",
+                    metric_name,
+                    all_metrics[metric_name],
+                )
         except Exception as exc:
             log.error("Channel file error (%s): %s", filename, exc)
 

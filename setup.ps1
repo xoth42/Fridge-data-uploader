@@ -8,7 +8,7 @@
     4. Does a test run of push_metrics.py using regular python (errors visible)
     5. Removes any existing PushFridgeMetrics scheduled task
     6. Locates pythonw.exe (windowless Python -- ships with Microsoft Store Python)
-    7. Registers a new scheduled task that runs silently as SYSTEM every minute
+    7. Registers a new scheduled task that runs silently every minute
 
   Usage:
     Right-click -> "Run with PowerShell"
@@ -99,6 +99,8 @@ if (Test-Path $Candidate) {
 
 # Fallback: scan common Microsoft Store Python locations
 if (-not $PythonwExe) {
+    Write-Host "  pythonw.exe not found next to python.exe -- searching WindowsApps..." `
+        -ForegroundColor Yellow
     $LocalAppData = [System.Environment]::GetFolderPath("LocalApplicationData")
     $SearchRoot = Join-Path $LocalAppData "Microsoft\WindowsApps"
     if (Test-Path $SearchRoot) {
@@ -120,7 +122,7 @@ Write-Host "  Found: $PythonwExe" -ForegroundColor Green
 
 # ---- 7. Register new scheduled task --------------------------------
 Write-Host ""
-Write-Host "--- Registering scheduled task (silent, SYSTEM, every 1 min) ---" `
+Write-Host "--- Registering scheduled task (silent, every 1 min) ---" `
     -ForegroundColor Cyan
 
 $Action = New-ScheduledTaskAction `
@@ -132,7 +134,7 @@ $Trigger = New-ScheduledTaskTrigger `
     -Once `
     -At (Get-Date).Date `
     -RepetitionInterval (New-TimeSpan -Minutes 1) `
-    -RepetitionDuration (New-TimeSpan -Days 3650)
+    -RepetitionDuration (New-TimeSpan -Days 3650)   # ~10 years (~indefinitely)
 
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
@@ -149,7 +151,6 @@ Register-ScheduledTask `
     -Settings $Settings `
     -Description "Push fridge sensor metrics to Prometheus Pushgateway every minute" `
     -RunLevel Highest `
-    -User "SYSTEM" `
     -Force
 
 Write-Host "  Task registered." -ForegroundColor Green
@@ -162,13 +163,10 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Task name  : $TaskName"
 Write-Host "  Runner     : $PythonwExe (no CMD popup)"
-Write-Host "  Runs as    : SYSTEM"
 Write-Host "  Frequency  : every 1 minute"
 Write-Host "  Log file   : $ScriptDir\push_metrics.log"
 Write-Host "  Verify at  : http://<PUSHGATEWAY_URL>/metrics"
 Write-Host ""
-Write-Host "  To remove later:"
+Write-Host "  To remove later (run from an elevated PowerShell):"
 Write-Host "    Unregister-ScheduledTask -TaskName $TaskName" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "Press any key to exit..." -ForegroundColor Yellow
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

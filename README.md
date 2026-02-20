@@ -20,10 +20,11 @@ Reads all available Bluefors fridge sensor data and pushes metrics to a Promethe
    ```
    Then open `.env` in a text editor and set the correct path and URL.
 
-3. **Run `setup.ps1`** -- right-click -> *Run with PowerShell*, or from a terminal:
+3. **Run `setup.ps1` from an elevated (Administrator) PowerShell** -- right-click -> *Run as Administrator*, or from an admin terminal:
    ```powershell
    powershell -ExecutionPolicy Bypass -File setup.ps1
    ```
+   Admin rights are required to register a Windows Task Scheduler job.
 
 4. **That's it.** The setup script installs dependencies, does a test run, and registers a Windows Task Scheduler job that runs silently every minute (no CMD popup).
 
@@ -46,6 +47,8 @@ The script reads the following files from today's Bluefors date folder (`YY-MM-D
 
 New CH* files added by Bluefors are picked up automatically.
 
+> **Note:** The channel-to-sensor label assignments (50K flange, 4K flange, Still, MXC, FSE) and unit assumptions are preliminary guesses based on available documentation. They will be reviewed by experienced technicians and may change as the data is validated.
+
 ## Metric Naming Convention
 
 All metric names follow the pattern `<key>_<unit>`, for example:
@@ -65,7 +68,7 @@ Each metric includes a human-readable HELP string (visible in Pushgateway) that 
 
 - The script is **strictly read-only** against the fridge logs directory.
 - `FRIGE_LOGS_DIR` should point to the **top-level Bluefors Logs folder** (e.g. `C:\Users\WangLab\Bluefors logs`). The script automatically navigates the date-based subdirectory structure.
-- The scheduled task runs as `SYSTEM` using `pythonw.exe` so there is no visible CMD window.
+- The scheduled task uses `pythonw.exe` so there is no visible CMD window.
 - Each file parser fails independently -- one missing or malformed file does not prevent other files from being collected.
 
 ```
@@ -97,7 +100,7 @@ Bluefors logs/
 
 ## Uninstall
 
-To remove the scheduled task:
+To remove the scheduled task (run from an elevated/Administrator PowerShell):
 ```powershell
 Unregister-ScheduledTask -TaskName PushFridgeMetrics
 ```
