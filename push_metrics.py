@@ -374,45 +374,48 @@ def push_metrics(
 def main() -> int:
     env_file = SCRIPT_DIR / ".env"
 
-    # ---- Phase 1: load config from .env --------------------------------
     try:
-        cfg = load_config(env_file)
-    except Exception as exc:
-        log.error("Configuration error: %s", exc)
-        return 1
+        # ---- Phase 1: load config from .env --------------------------------
+        try:
+            cfg = load_config(env_file)
+        except Exception as exc:
+            log.error("Configuration error: %s", exc)
+            return 1
 
-    # ---- Phase 2: collect metrics from all log files (READ-ONLY) -------
-    try:
-        all_metrics = collect_all_metrics(cfg["logs_dir"], date.today())
-    except Exception as exc:
-        log.error("Data collection error: %s", exc)
-        return 1
+        # ---- Phase 2: collect metrics from all log files (READ-ONLY) -------
+        try:
+            all_metrics = collect_all_metrics(cfg["logs_dir"], date.today())
+        except Exception as exc:
+            log.error("Data collection error: %s", exc)
+            return 1
 
-    log.info("FRIGE_LOGS_DIR resolved to: %s", cfg["logs_dir"])
-    log.info("Collected %d metric(s) total: %s", len(all_metrics), list(all_metrics.keys()))
+        log.info("FRIGE_LOGS_DIR resolved to: %s", cfg["logs_dir"])
+        log.info("Collected %d metric(s) total: %s", len(all_metrics), list(all_metrics.keys()))
 
-    if not all_metrics:
-        log.error("No metrics collected -- nothing to push")
-        return 1
+        if not all_metrics:
+            log.error("No metrics collected -- nothing to push")
+            return 1
 
-    # ---- Phase 3: push to Prometheus Pushgateway -----------------------
-    try:
-        push_metrics(
-            all_metrics,
-            pushgateway_url=cfg["pushgateway_url"],
-            machine_name=cfg["machine_name"],
-            job_name=cfg["job_name"],
+        # ---- Phase 3: push to Prometheus Pushgateway -----------------------
+        try:
+            push_metrics(
+                all_metrics,
+                pushgateway_url=cfg["pushgateway_url"],
+                machine_name=cfg["machine_name"],
+                job_name=cfg["job_name"],
+            )
+        except Exception as exc:
+            log.error("Push failed: %s", exc)
+            return 1
+
+        log.info(
+            "Successfully pushed %d metric(s) to %s",
+            len(all_metrics),
+            cfg["pushgateway_url"],
         )
-    except Exception as exc:
-        log.error("Push failed: %s", exc)
-        return 1
-
-    log.info(
-        "Successfully pushed %d metric(s) to %s",
-        len(all_metrics),
-        cfg["pushgateway_url"],
-    )
-    return 0
+        return 0
+    finally:
+        logging.shutdown()
 
 
 if __name__ == "__main__":
