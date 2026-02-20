@@ -2,3 +2,6 @@
 *.log
 __pycache__/
 *.pyc
+collectall.py
+collectall.ps1
+collectall_report.txt
