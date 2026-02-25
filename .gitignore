@@ -1,7 +1,19 @@
+# Environment and configuration files - local overrides
 .env
+.env.local
+.env.*.local
+
+# All log files (push_metrics.log, etc.)
 *.log
+
+# Python runtime artifacts
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Local data collection files (not intended for version control)
 collectall.py
 collectall.ps1
 collectall_report.txt
+example_data/

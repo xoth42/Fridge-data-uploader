@@ -2,13 +2,14 @@ import os
 import re
 import sys
 import logging
+from logging.handlers import RotatingFileHandler
 from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
-from metric_metadata import get_description, get_group, get_metric_name_for_raw_key
+from metric_metadata import get_description, get_group, get_metric_name_for_raw_key, get_display_name, get_subgroup
 
 # ---------------------------------------------------------------------------
 # Logging -- write log to script's own directory, never to the data directory
@@ -21,10 +22,13 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        RotatingFileHandler(LOG_FILE, encoding="utf-8", maxBytes=1048576, backupCount=5),
     ],
 )
 log = logging.getLogger(__name__)
+
+# Global variable to track the last time:minute we pushed metrics
+_last_pushed_time = None
 
 # ---------------------------------------------------------------------------
 # .env helpers
@@ -78,6 +82,36 @@ def read_last_line(file_path: Path) -> str:
     if not last_line:
         raise ValueError(f"File is empty: {file_path}")
     return last_line.strip()
+
+
+def extract_time_minute(line: str) -> str:
+    """Extract HH:MM from a CSV line with format: date,time,...
+    
+    Returns the time field truncated to HH:MM (e.g., "15:14" from "15:14:27").
+    """
+    parts = [p.strip() for p in line.split(",", 2)]
+    if len(parts) < 2:
+        raise ValueError(f"Line too short to extract time: {line!r}")
+    time_str = parts[1]  # "HH:MM:SS" format
+    # Extract just HH:MM
+    return ":".join(time_str.split(":")[:2])
+
+
+def is_new_data(line: str) -> bool:
+    """Check if the line's timestamp (HH:MM) differs from the last push.
+    
+    Returns True if this is new data (different HH:MM), False if stale (same HH:MM).
+    """
+    global _last_pushed_time
+    try:
+        current_time = extract_time_minute(line)
+        if _last_pushed_time is None or _last_pushed_time != current_time:
+            _last_pushed_time = current_time
+            return True # data is new
+        return False # data is stale
+    except Exception as exc:
+        log.error("Error checking for stale data: %s", exc)
+        return True  # If we can't determine, push anyway
 
 
 def parse_status_line(line: str) -> dict[str, float]:
@@ -337,6 +371,7 @@ def push_metrics(
 
     Uses get_description() for the HELP text and get_group() for the
     subsystem label so each metric can be filtered in Grafana.
+    Adds display_name and subgroup labels so they are queryable in Grafana.
     """
     registry = CollectorRegistry()
 
@@ -344,13 +379,15 @@ def push_metrics(
         safe_name = _safe_metric_name(metric_key)
         description = get_description(metric_key)
         group = get_group(metric_key)
+        display_name = get_display_name(metric_key)
+        subgroup = get_subgroup(metric_key)
         gauge = Gauge(
             safe_name,
             description,
-            ["subsystem"],
+            ["subsystem", "display_name", "subgroup"],
             registry=registry,
         )
-        gauge.labels(subsystem=group).set(value)
+        gauge.labels(subsystem=group, display_name=display_name, subgroup=subgroup).set(value)
 
     heartbeat = Gauge(
         "last_push_timestamp_seconds",
@@ -381,9 +418,24 @@ def main() -> int:
         log.error("Configuration error: %s", exc)
         return 1
 
+    # ---- Phase 1b: check if we have new data (avoid pushing stale data) ---
+    target_date = date.today()
+    date_str = target_date.strftime("%y-%m-%d")
+    date_dir = cfg["logs_dir"] / date_str
+    status_path = date_dir / f"Status_{date_str}.log"
+    
+    try:
+        if status_path.exists():
+            status_line = read_last_line(status_path)
+            if not is_new_data(status_line):
+                log.info("Data is stale (timestamp unchanged). Skipping push.")
+                return 0
+    except Exception as exc:
+        log.warning("Could not check for stale data: %s. Proceeding anyway.", exc)
+
     # ---- Phase 2: collect metrics from all log files (READ-ONLY) -------
     try:
-        all_metrics = collect_all_metrics(cfg["logs_dir"], date.today())
+        all_metrics = collect_all_metrics(cfg["logs_dir"], target_date)
     except Exception as exc:
         log.error("Data collection error: %s", exc)
         return 1

@@ -144,16 +144,62 @@ $Settings = New-ScheduledTaskSettingsSet `
     -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 1)
 
-Register-ScheduledTask `
-    -TaskName $TaskName `
-    -Action $Action `
-    -Trigger $Trigger `
-    -Settings $Settings `
-    -Description "Push fridge sensor metrics to Prometheus Pushgateway every minute" `
-    -RunLevel Highest `
-    -Force
+try {
+    Register-ScheduledTask `
+        -TaskName $TaskName `
+        -Action $Action `
+        -Trigger $Trigger `
+        -Settings $Settings `
+        -Description "Push fridge sensor metrics to Prometheus Pushgateway every minute" `
+        -RunLevel Highest `
+        -Force -ErrorAction Stop
+    
+    Write-Host "  Task registered." -ForegroundColor Green
+} catch {
+    if ($_ -match "Access is denied" -or $_ -match "unauthorized") {
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Red
+        Write-Host "  ADMINISTRATOR PRIVILEGES REQUIRED" -ForegroundColor Red
+        Write-Host "========================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Error: Unable to register scheduled task." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "This script must be run with Administrator privileges." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Please re-run this script using one of these methods:" -ForegroundColor Yellow
+        Write-Host "  1. Right-click this script -> 'Run with PowerShell' -> click 'Run anyway' -> select 'Run as administrator'" -ForegroundColor White
+        Write-Host "  2. Open PowerShell as administrator, then run:" -ForegroundColor White
+        Write-Host "     powershell -ExecutionPolicy Bypass -File setup.ps1" -ForegroundColor DarkGray
+        Write-Host "  3. Open Command Prompt as administrator, then run:" -ForegroundColor White
+        Write-Host "     powershell -ExecutionPolicy Bypass -File setup.ps1" -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "Press any key to exit..." -ForegroundColor Yellow
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        exit 1
+    } else {
+        throw $_
+    }
+}
 
-Write-Host "  Task registered." -ForegroundColor Green
+# ---- 8. Update from git repository --------------------------------
+Write-Host ""
+Write-Host "--- Updating from git repository ---" -ForegroundColor Cyan
+
+try {
+    $CurrentLocation = Get-Location
+    Set-Location $ScriptDir
+    
+    git pull
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Repository updated." -ForegroundColor Green
+    } else {
+        Write-Host "  Warning: git pull exited with code $LASTEXITCODE" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  Warning: Unable to update from git repository: $_" -ForegroundColor Yellow
+} finally {
+    Set-Location $CurrentLocation
+}
 
 # ---- Done ----------------------------------------------------------
 Write-Host ""

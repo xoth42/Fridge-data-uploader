@@ -6,10 +6,12 @@ a fully-qualified Prometheus metric name without a separate lookup table.
 
 Each value dict contains:
   metric_name  : Fully-qualified Prometheus metric name (with unit suffix).
-  description  : Human-readable label with source file in brackets and raw key in parens.
+  description  : Human-readable label with raw key in parens.
+  display_name : Short friendly name for Grafana.
   unit_suffix  : The suffix embedded in metric_name (empty string if none).
   grafana_unit : Grafana unit identifier string for auto-detection.
   group        : Logical grouping (used as Prometheus subsystem label).
+  subgroup     : Physical/logical location for fridge channels (50K flange/4K flange/Still/MXC/FSE).
 """
 
 METRIC_METADATA: dict[str, dict] = {
@@ -18,35 +20,35 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "cpahp": {
         "metric_name": "cpahp_mbar",
-        "description": "Compressor high pressure [Status file] (cpahp)",
+        "description": "Compressor high pressure (cpahp)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "compressor",
     },
     "cpahpa": {
         "metric_name": "cpahpa_mbar",
-        "description": "Compressor high pressure actual [Status file] (cpahpa)",
+        "description": "Compressor high pressure actual (cpahpa)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "compressor",
     },
     "cpalp": {
         "metric_name": "cpalp_mbar",
-        "description": "Compressor low pressure [Status file] (cpalp)",
+        "description": "Compressor low pressure (cpalp)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "compressor",
     },
     "cpalpa": {
         "metric_name": "cpalpa_mbar",
-        "description": "Compressor low pressure actual [Status file] (cpalpa)",
+        "description": "Compressor low pressure actual (cpalpa)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "compressor",
     },
     "cpadp": {
         "metric_name": "cpadp_mbar",
-        "description": "Compressor differential pressure [Status file] (cpadp)",
+        "description": "Compressor differential pressure (cpadp)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "compressor",
@@ -56,28 +58,28 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "cpatempwi": {
         "metric_name": "cpatempwi_celsius",
-        "description": "Compressor water inlet temperature [Status file] (cpatempwi)",
+        "description": "Compressor water inlet temperature (cpatempwi)",
         "unit_suffix": "_celsius",
         "grafana_unit": "celsius",
         "group": "compressor",
     },
     "cpatempwo": {
         "metric_name": "cpatempwo_celsius",
-        "description": "Compressor water outlet temperature [Status file] (cpatempwo)",
+        "description": "Compressor water outlet temperature (cpatempwo)",
         "unit_suffix": "_celsius",
         "grafana_unit": "celsius",
         "group": "compressor",
     },
     "cpatempo": {
         "metric_name": "cpatempo_celsius",
-        "description": "Compressor output temperature [Status file] (cpatempo)",
+        "description": "Compressor output temperature (cpatempo)",
         "unit_suffix": "_celsius",
         "grafana_unit": "celsius",
         "group": "compressor",
     },
     "cpatemph": {
         "metric_name": "cpatemph_celsius",
-        "description": "Compressor helium temperature [Status file] (cpatemph)",
+        "description": "Compressor helium temperature (cpatemph)",
         "unit_suffix": "_celsius",
         "grafana_unit": "celsius",
         "group": "compressor",
@@ -87,14 +89,14 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "cpacurrent": {
         "metric_name": "cpacurrent_amperes",
-        "description": "Compressor motor current [Status file] (cpacurrent)",
+        "description": "Compressor motor current (cpacurrent)",
         "unit_suffix": "_amperes",
         "grafana_unit": "amp",
         "group": "compressor",
     },
     "cpahours": {
         "metric_name": "cpahours_hours",
-        "description": "Compressor total operating hours [Status file] (cpahours)",
+        "description": "Compressor total operating hours (cpahours)",
         "unit_suffix": "_hours",
         "grafana_unit": "h",
         "group": "compressor",
@@ -104,14 +106,14 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "tc400actualspd": {
         "metric_name": "tc400actualspd_hz",
-        "description": "Turbo pump actual speed [Status file] (tc400actualspd)",
+        "description": "Turbo pump actual speed (tc400actualspd)",
         "unit_suffix": "_hz",
         "grafana_unit": "hertz",
         "group": "turbo_pump",
     },
     "tc400drvpower": {
         "metric_name": "tc400drvpower_watts",
-        "description": "Turbo pump drive power [Status file] (tc400drvpower)",
+        "description": "Turbo pump drive power (tc400drvpower)",
         "unit_suffix": "_watts",
         "grafana_unit": "watt",
         "group": "turbo_pump",
@@ -121,28 +123,28 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "nxdspt": {
         "metric_name": "nxdspt",
-        "description": "Scroll pump tip temperature raw sensor value [Status file] (nxdspt)",
+        "description": "Scroll pump tip temperature raw sensor value (nxdspt)",
         "unit_suffix": "",
         "grafana_unit": "short",
         "group": "scroll_pump",
     },
     "nxdsct": {
         "metric_name": "nxdsct",
-        "description": "Scroll pump controller temperature raw sensor value [Status file] (nxdsct)",
+        "description": "Scroll pump controller temperature raw sensor value (nxdsct)",
         "unit_suffix": "",
         "grafana_unit": "short",
         "group": "scroll_pump",
     },
     "nxdsf": {
         "metric_name": "nxdsf_hz",
-        "description": "Scroll pump frequency [Status file] (nxdsf)",
+        "description": "Scroll pump frequency (nxdsf)",
         "unit_suffix": "_hz",
         "grafana_unit": "hertz",
         "group": "scroll_pump",
     },
     "nxdstrs": {
         "metric_name": "nxdstrs_seconds",
-        "description": "Scroll pump running time [Status file] (nxdstrs)",
+        "description": "Scroll pump running time (nxdstrs)",
         "unit_suffix": "_seconds",
         "grafana_unit": "s",
         "group": "scroll_pump",
@@ -152,7 +154,7 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "ctrl_pres": {
         "metric_name": "ctrl_pres_mbar",
-        "description": "Control pressure [Status file] (ctrl_pres)",
+        "description": "Control pressure (ctrl_pres)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "probe_control",
@@ -162,98 +164,102 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "ch1_t": {
         "metric_name": "ch1_t_kelvin",
-        "description": "50K flange temperature [CH1 T file] (ch1_t)",
+        "description": "50K flange temperature (ch1_t)",
         "unit_suffix": "_kelvin",
         "grafana_unit": "kelvin",
         "group": "fridge_temps",
+        "subgroup": "50K flange",
     },
     "ch1_r": {
         "metric_name": "ch1_r_ohms",
-        "description": "50K flange resistance [CH1 R file] (ch1_r)",
+        "description": "50K flange resistance (ch1_r)",
         "unit_suffix": "_ohms",
         "grafana_unit": "ohm",
         "group": "fridge_resistance",
+        "subgroup": "50K flange",
     },
     # ------------------------------------------------------------------
     # CH2 -- 4K flange
     # ------------------------------------------------------------------
     "ch2_t": {
         "metric_name": "ch2_t_kelvin",
-        "description": "4K flange temperature [CH2 T file] (ch2_t)",
+        "description": "4K flange temperature (ch2_t)",
         "unit_suffix": "_kelvin",
         "grafana_unit": "kelvin",
         "group": "fridge_temps",
+        "subgroup": "4K flange",
     },
     "ch2_r": {
         "metric_name": "ch2_r_ohms",
-        "description": "4K flange resistance [CH2 R file] (ch2_r)",
+        "description": "4K flange resistance (ch2_r)",
         "unit_suffix": "_ohms",
         "grafana_unit": "ohm",
         "group": "fridge_resistance",
+        "subgroup": "4K flange",
     },
     # ------------------------------------------------------------------
     # CH5 -- Still
     # ------------------------------------------------------------------
     "ch5_t": {
         "metric_name": "ch5_t_kelvin",
-        "description": "Still temperature [CH5 T file] (ch5_t)",
+        "description": "Still temperature (ch5_t)",
         "unit_suffix": "_kelvin",
         "grafana_unit": "kelvin",
         "group": "fridge_temps",
+        "subgroup": "Still",
     },
     "ch5_r": {
         "metric_name": "ch5_r_ohms",
-        "description": "Still resistance [CH5 R file] (ch5_r)",
+        "description": "Still resistance (ch5_r)",
         "unit_suffix": "_ohms",
         "grafana_unit": "ohm",
         "group": "fridge_resistance",
+        "subgroup": "Still",
     },
     # ------------------------------------------------------------------
     # CH6 -- MXC (mixing chamber, mK-range)
     # ------------------------------------------------------------------
     "ch6_t": {
         "metric_name": "ch6_t_kelvin",
-        "description": (
-            "MXC (mixing chamber) temperature, mK-range raw value in K"
-            " [CH6 T file] (ch6_t)"
-        ),
+        "description": "MXC (mixing chamber) temperature (ch6_t)",
         "unit_suffix": "_kelvin",
         "grafana_unit": "kelvin",
         "group": "fridge_temps",
+        "subgroup": "MXC",
     },
     "ch6_r": {
         "metric_name": "ch6_r_ohms",
-        "description": "MXC (mixing chamber) resistance [CH6 R file] (ch6_r)",
+        "description": "MXC (mixing chamber) resistance (ch6_r)",
         "unit_suffix": "_ohms",
         "grafana_unit": "ohm",
         "group": "fridge_resistance",
+        "subgroup": "MXC",
     },
     # ------------------------------------------------------------------
     # CH9 -- FSE (fridge sample environment, mK-range)
     # ------------------------------------------------------------------
     "ch9_t": {
         "metric_name": "ch9_t_kelvin",
-        "description": (
-            "FSE (fridge sample environment) temperature, mK-range raw value in K"
-            " [CH9 T file] (ch9_t)"
-        ),
+        "description": "FSE temperature (ch9_t)",
         "unit_suffix": "_kelvin",
         "grafana_unit": "kelvin",
         "group": "fridge_temps",
+        "subgroup": "FSE",
     },
     "ch9_r": {
         "metric_name": "ch9_r_ohms",
-        "description": "FSE (fridge sample environment) resistance [CH9 R file] (ch9_r)",
+        "description": "FSE resistance (ch9_r)",
         "unit_suffix": "_ohms",
         "grafana_unit": "ohm",
         "group": "fridge_resistance",
+        "subgroup": "FSE",
     },
     # ------------------------------------------------------------------
     # Flowmeter
     # ------------------------------------------------------------------
     "flowmeter": {
         "metric_name": "flowmeter_mmol_per_s",
-        "description": "Mixture flow rate [Flowmeter file] (flowmeter)",
+        "description": "Mixture flow rate (flowmeter)",
         "unit_suffix": "_mmol_per_s",
         "grafana_unit": "moles",
         "group": "flow",
@@ -263,42 +269,42 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "maxigauge_ch1": {
         "metric_name": "maxigauge_ch1_pressure_mbar",
-        "description": "Maxigauge CH1 pressure [maxigauge file] (maxigauge_ch1)",
+        "description": "Maxigauge CH1 pressure (maxigauge_ch1)",
         "unit_suffix": "_pressure_mbar",
         "grafana_unit": "pressurembar",
         "group": "maxigauge",
     },
     "maxigauge_ch2": {
         "metric_name": "maxigauge_ch2_pressure_mbar",
-        "description": "Maxigauge CH2 pressure [maxigauge file] (maxigauge_ch2)",
+        "description": "Maxigauge CH2 pressure (maxigauge_ch2)",
         "unit_suffix": "_pressure_mbar",
         "grafana_unit": "pressurembar",
         "group": "maxigauge",
     },
     "maxigauge_ch3": {
         "metric_name": "maxigauge_ch3_pressure_mbar",
-        "description": "Maxigauge CH3 pressure [maxigauge file] (maxigauge_ch3)",
+        "description": "Maxigauge CH3 pressure (maxigauge_ch3)",
         "unit_suffix": "_pressure_mbar",
         "grafana_unit": "pressurembar",
         "group": "maxigauge",
     },
     "maxigauge_ch4": {
         "metric_name": "maxigauge_ch4_pressure_mbar",
-        "description": "Maxigauge CH4 pressure [maxigauge file] (maxigauge_ch4)",
+        "description": "Maxigauge CH4 pressure (maxigauge_ch4)",
         "unit_suffix": "_pressure_mbar",
         "grafana_unit": "pressurembar",
         "group": "maxigauge",
     },
     "maxigauge_ch5": {
         "metric_name": "maxigauge_ch5_pressure_mbar",
-        "description": "Maxigauge CH5 pressure [maxigauge file] (maxigauge_ch5)",
+        "description": "Maxigauge CH5 pressure (maxigauge_ch5)",
         "unit_suffix": "_pressure_mbar",
         "grafana_unit": "pressurembar",
         "group": "maxigauge",
     },
     "maxigauge_ch6": {
         "metric_name": "maxigauge_ch6_pressure_mbar",
-        "description": "Maxigauge CH6 pressure [maxigauge file] (maxigauge_ch6)",
+        "description": "Maxigauge CH6 pressure (maxigauge_ch6)",
         "unit_suffix": "_pressure_mbar",
         "grafana_unit": "pressurembar",
         "group": "maxigauge",
@@ -358,4 +364,27 @@ def get_group(key: str) -> str:
     if meta:
         return meta["group"]
     return "unknown"
+
+
+def get_subgroup(key: str) -> str:
+    """Return the physical/logical location subgroup for a raw key or output metric name.
+    
+    For fridge channels, returns values like "50K flange", "4K flange", "Still", "MXC", "FSE".
+    For other metrics, returns empty string.
+    """
+    meta = _lookup(key)
+    if meta:
+        return meta.get("subgroup", "")
+    return ""
+
+
+def get_display_name(key: str) -> str:
+    """Return a short display name for use in Grafana visualizations.
+    
+    Extracts the friendly part of the description without the file source
+    and raw key info. For example:
+      "Still temperature (ch5_t)" 
+    """
+    description = get_description(key)
+    return description
 
