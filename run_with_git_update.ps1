@@ -1,5 +1,6 @@
-# Wrapper script for scheduled task execution
+# Wrapper script for scheduled task execution (SILENT)
 # Runs git pull to keep the repository up-to-date, then executes push_metrics.py
+# All output is suppressed to prevent popup windows
 
 param(
     [Parameter(Mandatory=$true)]
@@ -19,12 +20,13 @@ try {
     Set-Location $ScriptDir
     
     # Try to update from git repository (non-blocking)
-    git pull 2>$null
+    # Suppress both stdout and stderr completely
+    git pull *>$null
     
 } catch {
     # Git update failed, but continue with metrics push
-    # Errors are suppressed to avoid task failures from git issues
+    # Errors are completely suppressed
 }
 
-# Run the metrics push script
-& $PythonExe $MetricsScript
+# Run the metrics push script with all output suppressed
+& $PythonExe $MetricsScript *>$null

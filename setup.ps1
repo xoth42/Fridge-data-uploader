@@ -133,7 +133,7 @@ Write-Host "--- Registering scheduled task (silent, every 1 min with git updates
 $Action = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument (
-        "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " +
+        "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File " +
         ('"' + (Join-Path $ScriptDir "run_with_git_update.ps1") + '"') +
         " -ScriptDir " + ('"' + $ScriptDir + '"') +
         " -PythonExe " + ('"' + $PythonwExe + '"') +
