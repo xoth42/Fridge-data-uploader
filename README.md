@@ -20,13 +20,10 @@ Reads all available Bluefors fridge sensor data and pushes metrics to a Promethe
    ```
    Then open `.env` in a text editor and set the correct path and URL.
 
-3. **Run `setup.ps1` from an elevated (Administrator) PowerShell** -- right-click -> *Run as Administrator*, or from an admin terminal:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File setup.ps1
-   ```
+3. **Run `START_LOGGING` (double click)** and give admin.
    Admin rights are required to register a Windows Task Scheduler job.
 
-4. **That's it.** The setup script installs dependencies, does a test run, and registers a Windows Task Scheduler job that runs silently every minute (no CMD popup).
+4. **That's it.** The setup script installs dependencies, does a test run, and registers a Windows Task Scheduler job that runs silently every minute, and installs updates from this repo.
 
 ## What Gets Collected
 
