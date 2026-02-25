@@ -127,12 +127,18 @@ Write-Host "  Found: $PythonwExe" -ForegroundColor Green
 
 # ---- 7. Register new scheduled task --------------------------------
 Write-Host ""
-Write-Host "--- Registering scheduled task (silent, every 1 min) ---" `
+Write-Host "--- Registering scheduled task (silent, every 1 min with git updates) ---" `
     -ForegroundColor Cyan
 
 $Action = New-ScheduledTaskAction `
-    -Execute $PythonwExe `
-    -Argument ('"' + $ScriptPath + '"') `
+    -Execute "powershell.exe" `
+    -Argument (
+        "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " +
+        ('"' + (Join-Path $ScriptDir "run_with_git_update.ps1") + '"') +
+        " -ScriptDir " + ('"' + $ScriptDir + '"') +
+        " -PythonExe " + ('"' + $PythonwExe + '"') +
+        " -MetricsScript " + ('"' + $ScriptPath + '"')
+    ) `
     -WorkingDirectory $ScriptDir
 
 $Trigger = New-ScheduledTaskTrigger `
@@ -155,7 +161,7 @@ try {
         -Action $Action `
         -Trigger $Trigger `
         -Settings $Settings `
-        -Description "Push fridge sensor metrics to Prometheus Pushgateway every minute" `
+        -Description "Pull latest code from git, then push fridge sensor metrics to Prometheus Pushgateway every minute" `
         -RunLevel Highest `
         -Force -ErrorAction Stop
     
@@ -213,8 +219,8 @@ Write-Host "  SETUP COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Task name  : $TaskName"
-Write-Host "  Runner     : $PythonwExe (no CMD popup)"
-Write-Host "  Frequency  : every 1 minute"
+Write-Host "  Runner     : PowerShell wrapper (git updates + metrics)"
+Write-Host "  Frequency  : every 1 minute (with git pull before each run)"
 Write-Host "  Log file   : $ScriptDir\push_metrics.log"
 Write-Host "  Verify at  : http://<PUSHGATEWAY_URL>/metrics"
 Write-Host ""
