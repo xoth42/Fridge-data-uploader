@@ -9,11 +9,16 @@
     5. Removes any existing PushFridgeMetrics scheduled task
     6. Locates pythonw.exe (windowless Python -- ships with Microsoft Store Python)
     7. Registers a new scheduled task that runs silently every minute
+    8. Updates from git repository
 
   Usage:
-    Right-click -> "Run with PowerShell"
-    -- or --
-    powershell -ExecutionPolicy Bypass -File setup.ps1
+    EASIEST:
+      Double-click setup.bat (it will request admin privileges automatically)
+    
+    Alternatives:
+      Right-click setup.ps1 -> "Run with PowerShell"
+      -- or --
+      powershell -ExecutionPolicy Bypass -File setup.ps1
 
   NOTE: All strings are pure ASCII (no characters above code point 127).
 #>
