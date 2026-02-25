@@ -131,13 +131,13 @@ Write-Host "--- Registering scheduled task (silent, every 1 min with git updates
     -ForegroundColor Cyan
 
 $Action = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
+    -Execute "wscript.exe" `
     -Argument (
-        "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File " +
-        ('"' + (Join-Path $ScriptDir "run_with_git_update.ps1") + '"') +
-        " -ScriptDir " + ('"' + $ScriptDir + '"') +
-        " -PythonExe " + ('"' + $PythonwExe + '"') +
-        " -MetricsScript " + ('"' + $ScriptPath + '"')
+        ('"' + (Join-Path $ScriptDir "run_silent.vbs") + '"') +
+        " " + ('"' + (Join-Path $ScriptDir "run_with_git_update.ps1") + '"') +
+        " " + ('"' + $ScriptDir + '"') +
+        " " + ('"' + $PythonwExe + '"') +
+        " " + ('"' + $ScriptPath + '"')
     ) `
     -WorkingDirectory $ScriptDir
 
@@ -219,7 +219,7 @@ Write-Host "  SETUP COMPLETE" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Task name  : $TaskName"
-Write-Host "  Runner     : PowerShell wrapper (git updates + metrics)"
+Write-Host "  Runner     : VBScript wrapper (100% silent execution)"
 Write-Host "  Frequency  : every 1 minute (with git pull before each run)"
 Write-Host "  Log file   : $ScriptDir\push_metrics.log"
 Write-Host "  Verify at  : http://<PUSHGATEWAY_URL>/metrics"
