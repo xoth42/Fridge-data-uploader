@@ -1,6 +1,6 @@
 @echo off
-REM Double-click safe batch wrapper for setup.ps1
-REM This file requests admin privileges and runs the PowerShell setup script
+REM Double-click to start the fridge logging service
+REM This script requests admin privileges and runs the PowerShell setup
 
 REM Check if running with admin privileges
 net session >nul 2>&1
