@@ -1,3 +1,5 @@
+class ServerUnavailableError(Exception):
+    pass
 import os
 import re
 import sys
@@ -405,12 +407,15 @@ def push_metrics(
     )
     heartbeat.set_to_current_time()
 
-    push_to_gateway(
-        pushgateway_url,
-        job=job_name,
-        grouping_key={"instance": machine_name},
-        registry=registry,
-    )
+    try:
+        push_to_gateway(
+            pushgateway_url,
+            job=job_name,
+            grouping_key={"instance": machine_name},
+            registry=registry,
+        )
+    except Exception as exc:
+        raise ServerUnavailableError(f"Pushgateway server unavailable: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -463,12 +468,10 @@ def main() -> int:
             machine_name=cfg["machine_name"],
             job_name=cfg["job_name"],
         )
+    except ServerUnavailableError as exc:
+        log.error("Push failed: Pushgateway server is down or unreachable: %s", exc)
+        return 2
     except Exception as exc:
-        import requests
-        # Catch all requests-related errors as server-down
-        if isinstance(exc, requests.exceptions.RequestException):
-            log.error("Push failed: Pushgateway server is down or unreachable: %s", exc)
-            return 2
         log.error("Push failed: %s", exc)
         return 1
 
