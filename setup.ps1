@@ -49,16 +49,62 @@ if (-not (Test-Path $EnvFile)) {
 }
 Write-Host "  Found: $EnvFile" -ForegroundColor Green
 
-# ---- 2. Check Python is available ----------------------------------
-Write-Host ""
+
+# ---- 2. Check Python is available and version >=3.9 -----------------
+Write-Host "" 
 Write-Host "--- Checking Python ---" -ForegroundColor Cyan
 $PythonExe = $null
-try {
-    $PythonExe = (Get-Command python -ErrorAction Stop).Source
-} catch {
-    throw "Python not found. Install Python from the Microsoft Store, then re-run this script."
+$MinVersion = [Version]"3.9"
+$PythonOverride = $null
+
+# Check for manual override in .env
+$envLines = Get-Content $EnvFile | Where-Object { $_ -match "^PYTHON_EXE_OVERRIDE=" }
+if ($envLines.Count -gt 0) {
+    $PythonOverride = $envLines[0] -replace "^PYTHON_EXE_OVERRIDE=", ""
+    if ($PythonOverride -and (Test-Path $PythonOverride)) {
+        $PythonExe = $PythonOverride
+        Write-Host "  Manual override: using $PythonExe" -ForegroundColor Yellow
+    }
 }
-Write-Host "  Found: $PythonExe" -ForegroundColor Green
+
+if (-not $PythonExe) {
+    # Use regex to find python3.X executables with X >= 9 (including 3.10, 3.13, etc.)
+    $candidates = Get-Command -Name "python3.*" -ErrorAction SilentlyContinue | Where-Object {
+        $match = [regex]::Match($_.Name, "^python3\.(\d+)$")
+        $match.Success -and [int]$match.Groups[1].Value -ge 9
+    }
+    foreach ($cmd in $candidates) {
+        try {
+            $verOut = & $cmd.Source -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+            $verMatch = [regex]::Match($verOut, "^3\.(\d+)$")
+            if ($verMatch.Success -and [int]$verMatch.Groups[1].Value -ge 9) {
+                $PythonExe = $cmd.Source
+                Write-Host "  Found: $PythonExe (version $verOut)" -ForegroundColor Green
+                break
+            } else {
+                Write-Host "  Skipping $($cmd.Name) (version $verOut < 3.9)" -ForegroundColor DarkGray
+            }
+        } catch {}
+    }
+    # Fallback to 'python' if no python3.X >= 9 found
+    if (-not $PythonExe) {
+        try {
+            $cmd = Get-Command python -ErrorAction Stop
+            $verOut = & $cmd.Source -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+            $verMatch = [regex]::Match($verOut, "^3\.(\d+)$")
+            if ($verMatch.Success -and [int]$verMatch.Groups[1].Value -ge 9) {
+                $PythonExe = $cmd.Source
+                Write-Host "  Found: $PythonExe (version $verOut)" -ForegroundColor Green
+            } else {
+                Write-Host "  Skipping python (version $verOut < 3.9)" -ForegroundColor DarkGray
+            }
+        } catch {}
+    }
+}
+
+if (-not $PythonExe) {
+    throw "No suitable Python >=3.9 found. Install Python >=3.9 and/or set PYTHON_EXE_OVERRIDE in .env."
+}
 
 # ---- 3. Install pip dependencies -----------------------------------
 Write-Host ""
@@ -72,7 +118,7 @@ Write-Host "  Dependencies installed." -ForegroundColor Green
 Write-Host ""
 Write-Host "--- Test run of push_metrics.py ---" -ForegroundColor Cyan
 $ScriptPath = Join-Path $ScriptDir "push_metrics.py"
-python $ScriptPath
+& $PythonExe $ScriptPath
 if ($LASTEXITCODE -ne 0) {
     throw "Test run failed -- fix .env / network / logs path and try again."
 }
@@ -126,7 +172,7 @@ if (-not $PythonwExe) {
 Write-Host "  Found: $PythonwExe" -ForegroundColor Green
 
 # ---- 7. Register new scheduled task --------------------------------
-Write-Host ""
+Write-Host "" 
 Write-Host "--- Registering scheduled task (silent, every 1 min with git updates) ---" `
     -ForegroundColor Cyan
 

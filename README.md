@@ -2,10 +2,29 @@
 
 Reads all available Bluefors fridge sensor data and pushes metrics to a Prometheus Pushgateway every minute.
 
+
 ## Prerequisites
 
 - Windows machine with Python installed (Microsoft Store version is fine)
 - Network access to the EC2 Pushgateway
+
+## Python Version Troubleshooting & Manual Override
+
+This script requires **Python 3.9 or newer** due to usage of advanced type hints (e.g., `dict[str, float]`).
+
+If an older Python (e.g., 3.7) is detected, the script will attempt to automatically find and re-run itself with a newer Python (searching for `python3.13`, `python3.12`, etc.).
+
+**Manual override:**
+
+If automatic detection fails, you can specify the path to a suitable Python executable in your `.env` file:
+
+```
+PYTHON_EXE_OVERRIDE=C:\Path\To\python3.13.exe
+```
+
+This will force the script to use the designated Python interpreter.
+
+If you see errors like `TypeError: 'type' object is not subscriptable`, this means your Python is too old. Install Python >=3.9 and/or set `PYTHON_EXE_OVERRIDE` as above.
 
 ## Quick Start
 

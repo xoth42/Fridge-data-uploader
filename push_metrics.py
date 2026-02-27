@@ -423,7 +423,6 @@ def main() -> int:
     date_str = target_date.strftime("%y-%m-%d")
     date_dir = cfg["logs_dir"] / date_str
     status_path = date_dir / f"Status_{date_str}.log"
-    
     try:
         if status_path.exists():
             status_line = read_last_line(status_path)
