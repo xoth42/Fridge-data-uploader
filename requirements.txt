@@ -1,2 +1,3 @@
 python-dotenv
 prometheus-client
+requests

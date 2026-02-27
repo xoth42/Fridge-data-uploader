@@ -48,7 +48,16 @@ def load_config(env_file: Path) -> dict:
         raise FileNotFoundError(f".env file not found at: {env_file}")
     load_dotenv(dotenv_path=env_file)
 
-    pushgateway_url = _require_env("PUSHGATEWAY_URL")
+
+    # Only load PUSHGATEWAY_URL from server.env
+    server_env_file = env_file.parent / "server.env"
+    if not server_env_file.exists():
+        raise FileNotFoundError(f"server.env file not found at: {server_env_file}")
+    load_dotenv(dotenv_path=server_env_file, override=True)
+    pushgateway_url = os.getenv("PUSHGATEWAY_URL")
+    if not pushgateway_url:
+        raise ValueError("PUSHGATEWAY_URL is missing in server.env")
+
     machine_name    = _require_env("MACHINE_NAME")
     job_name        = os.getenv("PUSH_JOB_NAME", "sensor_data")
     logs_dir_raw    = _require_env("FRIGE_LOGS_DIR")
