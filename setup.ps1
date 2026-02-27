@@ -59,7 +59,10 @@ $PythonOverride = $null
 
 # Check for manual override in .env
 $envLines = Get-Content $EnvFile | Where-Object { $_ -match "^PYTHON_EXE_OVERRIDE=" }
-if ($envLines.Count -gt 0) {
+## Read .env file lines robustly
+$envLines = Get-Content -Path ".env" -ErrorAction SilentlyContinue
+# Always treat as array for count check
+if ($null -ne $envLines -and @($envLines).Count -gt 0) {
     $PythonOverride = $envLines[0] -replace "^PYTHON_EXE_OVERRIDE=", ""
     if ($PythonOverride -and (Test-Path $PythonOverride)) {
         $PythonExe = $PythonOverride
