@@ -71,9 +71,9 @@ if ($null -ne $envLines -and @($envLines).Count -gt 0) {
 }
 
 if (-not $PythonExe) {
-    # Use regex to find python3.X executables with X >= 9 (including 3.10, 3.13, etc.)
+    # Use regex to find python3.X executables with X >= 9 (including 3.10, 3.13, .exe, etc.)
     $candidates = Get-Command -Name "python3.*" -ErrorAction SilentlyContinue | Where-Object {
-        $match = [regex]::Match($_.Name, "^python3\.(\d+)$")
+        $match = [regex]::Match($_.Name, "^python3\.(\d+)(?:\.exe)?$")
         $match.Success -and [int]$match.Groups[1].Value -ge 9
     }
     foreach ($cmd in $candidates) {
