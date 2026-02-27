@@ -465,8 +465,8 @@ def main() -> int:
         )
     except Exception as exc:
         import requests
-        # Check for connection error (server down)
-        if isinstance(exc, requests.exceptions.ConnectionError):
+        # Catch all requests-related errors as server-down
+        if isinstance(exc, requests.exceptions.RequestException):
             log.error("Push failed: Pushgateway server is down or unreachable: %s", exc)
             return 2
         log.error("Push failed: %s", exc)
