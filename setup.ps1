@@ -113,7 +113,7 @@ if (-not $PythonExe) {
 Write-Host ""
 Write-Host "--- Installing Python dependencies ---" -ForegroundColor Cyan
 $ReqFile = Join-Path $ScriptDir "requirements.txt"
-pip install -r $ReqFile
+ & $PythonExe -m pip install -r $ReqFile
 if ($LASTEXITCODE -ne 0) { throw "pip install failed -- check the output above." }
 Write-Host "  Dependencies installed." -ForegroundColor Green
 
