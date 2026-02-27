@@ -455,6 +455,11 @@ def main() -> int:
             job_name=cfg["job_name"],
         )
     except Exception as exc:
+        import requests
+        # Check for connection error (server down)
+        if isinstance(exc, requests.exceptions.ConnectionError):
+            log.error("Push failed: Pushgateway server is down or unreachable: %s", exc)
+            return 2
         log.error("Push failed: %s", exc)
         return 1
 

@@ -122,10 +122,14 @@ Write-Host ""
 Write-Host "--- Test run of push_metrics.py ---" -ForegroundColor Cyan
 $ScriptPath = Join-Path $ScriptDir "push_metrics.py"
 & $PythonExe $ScriptPath
-if ($LASTEXITCODE -ne 0) {
+if ($LASTEXITCODE -eq 2) {
+    Write-Host "  WARNING: Test run failed due to Pushgateway server being down or unreachable." -ForegroundColor Yellow
+    Write-Host "  The scheduled task will still be set up. When the server is available, data will be pushed automatically." -ForegroundColor Yellow
+} elseif ($LASTEXITCODE -ne 0) {
     throw "Test run failed -- fix .env / network / logs path and try again."
+} else {
+    Write-Host "  Test run succeeded." -ForegroundColor Green
 }
-Write-Host "  Test run succeeded." -ForegroundColor Green
 
 # ---- 5. Remove existing task if present ----------------------------
 Write-Host ""
