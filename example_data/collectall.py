@@ -200,7 +200,8 @@ def post_to_dpaste(content: str) -> str:
 
 def main() -> int:
     script_dir = Path(__file__).resolve().parent
-    env_file = script_dir / ".env"
+    # .env lives in the fridge-data-uploader root (parent of example_data/)
+    env_file = script_dir.parent / ".env"
 
     # ---- Phase 1: Load config ----
     try:
