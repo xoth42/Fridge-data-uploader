@@ -469,10 +469,10 @@ def main() -> int:
             job_name=cfg["job_name"],
         )
     except ServerUnavailableError as exc:
-        log.error("Push failed: Pushgateway server is down or unreachable: %s", exc)
+        log.error("Push failed: server down or unreachable at %s: %s", cfg["pushgateway_url"], exc)
         return 2
     except Exception as exc:
-        log.error("Push failed: %s", exc)
+        log.error("Push failed (target: %s): %s", cfg["pushgateway_url"], exc)
         return 1
 
     log.info(
