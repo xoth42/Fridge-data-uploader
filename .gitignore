@@ -4,7 +4,7 @@
 .env.*.local
 
 # All log files (push_metrics.log, etc.)
-*.log
+*.log.*
 
 # Python runtime artifacts
 __pycache__/
@@ -19,3 +19,6 @@ collectall_report.txt
 example_data/
 
 .vscode
+
+.last_task_update_check
+
