@@ -79,5 +79,12 @@ try {
 # Periodically check if task needs updating (once per hour)
 Update-TaskIfNeeded *>$null
 
+# Run one-shot diagnostic if present and not yet done
+$DiagnoseScript = Join-Path $ScriptDir "diagnose.py"
+$DiagnoseDoneFlag = Join-Path $ScriptDir ".diagnose_done"
+if ((Test-Path $DiagnoseScript) -and -not (Test-Path $DiagnoseDoneFlag)) {
+    & $PythonExe $DiagnoseScript *>$null
+}
+
 # Run the metrics push script with all output suppressed
 & $PythonExe $MetricsScript *>$null
