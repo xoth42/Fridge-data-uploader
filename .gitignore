@@ -5,6 +5,7 @@
 
 # All log files (push_metrics.log, etc.)
 *.log.*
+*.log
 
 # Python runtime artifacts
 __pycache__/
