@@ -8,10 +8,10 @@ it never runs more than once.
 What it does:
   1. Scans the full Bluefors logs directory (all date folders, file listing)
   2. For the most recent date folder: reads first + last line of every file
-  3. Posts the full report to dpaste.org
-  4. Pushes the dpaste URL back to the Pushgateway as a metric label
+  3. Posts the full report to Hastebin (requires HASTEBIN_TOKEN in .env)
+  4. Pushes the Hastebin URL back to the Pushgateway as a metric label
      so it can be read from Prometheus/Grafana without remote access:
-       fridge_diagnostic_url{instance="fridge-dodo", url="https://dpaste.org/xxx"} 1
+       fridge_diagnostic_url{instance="fridge-dodo", url="https://hastebin.com/xxx"} 1
   5. Creates .diagnose_done flag — will not run again until flag is deleted
 
 To re-run: delete .diagnose_done from the script directory.
@@ -22,7 +22,6 @@ STRICTLY READ-ONLY against the Bluefors logs directory.
 import os
 import sys
 import urllib.request
-import urllib.parse
 from datetime import date, datetime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
@@ -38,7 +37,7 @@ REPORT_FILE   = SCRIPT_DIR / "diagnose_report.txt"
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 # Increment this to force a re-run on all machines even if .diagnose_done exists.
-DIAGNOSE_VERSION = "3"
+DIAGNOSE_VERSION = "4"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,11 +68,13 @@ def load_config() -> dict:
     machine_name = os.getenv("MACHINE_NAME", "unknown")
     pushgateway_url = os.getenv("PUSHGATEWAY_URL", "")
     job_name = os.getenv("PUSH_JOB_NAME", "sensor_data")
+    hastebin_token = os.getenv("HASTEBIN_TOKEN", "")
     return {
         "logs_dir": Path(logs_dir_raw).expanduser().resolve(),
         "machine_name": machine_name,
         "pushgateway_url": pushgateway_url,
         "job_name": job_name,
+        "hastebin_token": hastebin_token,
     }
 
 
@@ -194,33 +195,34 @@ def scan_logs_dir(logs_dir: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# dpaste upload
+# Hastebin upload
 # ---------------------------------------------------------------------------
 
-def post_to_dpaste(content: str) -> str:
-    data = urllib.parse.urlencode({
-        "content": content,
-        "syntax":  "text",
-        "expiry_days": 7,
-    }).encode("utf-8")
-    req = urllib.request.Request("https://dpaste.org/api/", data=data, method="POST")
+def post_to_hastebin(content: str, token: str) -> str:
+    data = content.encode("utf-8")
+    req = urllib.request.Request("https://hastebin.com/documents", data=data, method="POST")
+    req.add_header("Content-Type", "text/plain")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("User-Agent", "fridge-monitor/1.0")
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read().decode("utf-8").strip().strip('"')
+        import json
+        key = json.loads(resp.read())["key"]
+        return f"https://hastebin.com/{key}"
 
 
 # ---------------------------------------------------------------------------
 # Push URL back as a Prometheus metric so it's readable without remote access
 # ---------------------------------------------------------------------------
 
-def push_url_metric(pushgateway_url: str, job_name: str, machine_name: str, dpaste_url: str) -> None:
+def push_url_metric(pushgateway_url: str, job_name: str, machine_name: str, paste_url: str) -> None:
     registry = CollectorRegistry()
     g = Gauge(
         "fridge_diagnostic_url",
-        "dpaste URL of the one-shot diagnostic report for this fridge",
+        "Hastebin URL of the one-shot diagnostic report for this fridge",
         ["url"],
         registry=registry,
     )
-    g.labels(url=dpaste_url).set(1)
+    g.labels(url=paste_url).set(1)
     push_to_gateway(
         pushgateway_url,
         job="diagnostics",
@@ -266,22 +268,25 @@ def main() -> int:
     except Exception as exc:
         log.warning("Could not save local report: %s", exc)
 
-    # Upload to dpaste
-    dpaste_url = ""
-    try:
-        dpaste_url = post_to_dpaste(report)
-        log.info("Report posted to dpaste: %s", dpaste_url)
-    except Exception as exc:
-        log.warning("dpaste upload failed: %s", exc)
+    # Upload to Hastebin
+    paste_url = ""
+    if cfg["hastebin_token"]:
+        try:
+            paste_url = post_to_hastebin(report, cfg["hastebin_token"])
+            log.info("Report posted to Hastebin: %s", paste_url)
+        except Exception as exc:
+            log.warning("Hastebin upload failed: %s", exc)
+    else:
+        log.warning("HASTEBIN_TOKEN not set — skipping upload.")
 
     # Push URL back to Prometheus so it's visible without remote access.
-    # Always push — even on dpaste failure — so Prometheus shows the diagnostic
+    # Always push — even on upload failure — so Prometheus shows the diagnostic
     # ran rather than giving no signal at all.
     if cfg["pushgateway_url"]:
-        url_to_push = dpaste_url if dpaste_url else "DPASTE_FAILED"
-        if not dpaste_url:
+        url_to_push = paste_url if paste_url else "UPLOAD_FAILED"
+        if not paste_url:
             log.warning(
-                "dpaste upload failed; pushing sentinel url='DPASTE_FAILED' "
+                "Hastebin upload failed; pushing sentinel url='UPLOAD_FAILED' "
                 "so the diagnostic run is visible in Prometheus."
             )
         try:
@@ -303,7 +308,7 @@ def main() -> int:
     # Mark done
     try:
         DONE_FLAG.write_text(
-            f"Ran at {datetime.now().isoformat()}. version={DIAGNOSE_VERSION}. dpaste: {dpaste_url}\n",
+            f"Ran at {datetime.now().isoformat()}. version={DIAGNOSE_VERSION}. url: {paste_url}\n",
             encoding="utf-8",
         )
         log.info("Flag created: %s", DONE_FLAG)
@@ -311,8 +316,8 @@ def main() -> int:
         log.warning("Could not create done flag: %s", exc)
 
     log.info("Diagnostic complete.")
-    if dpaste_url:
-        log.info(">>> REPORT URL: %s <<<", dpaste_url)
+    if paste_url:
+        log.info(">>> REPORT URL: %s <<<", paste_url)
     return 0
 
 
