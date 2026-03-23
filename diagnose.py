@@ -31,11 +31,14 @@ import logging
 from dotenv import load_dotenv
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
-SCRIPT_DIR   = Path(__file__).resolve().parent
-LOG_FILE     = SCRIPT_DIR / "diagnose.log"
-DONE_FLAG    = SCRIPT_DIR / ".diagnose_done"
-REPORT_FILE  = SCRIPT_DIR / "diagnose_report.txt"
+SCRIPT_DIR    = Path(__file__).resolve().parent
+LOG_FILE      = SCRIPT_DIR / "diagnose.log"
+DONE_FLAG     = SCRIPT_DIR / ".diagnose_done"
+REPORT_FILE   = SCRIPT_DIR / "diagnose_report.txt"
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+# Increment this to force a re-run on all machines even if .diagnose_done exists.
+DIAGNOSE_VERSION = "3"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -220,7 +223,7 @@ def push_url_metric(pushgateway_url: str, job_name: str, machine_name: str, dpas
     g.labels(url=dpaste_url).set(1)
     push_to_gateway(
         pushgateway_url,
-        job=job_name,
+        job="diagnostics",
         grouping_key={"instance": machine_name},
         registry=registry,
     )
@@ -232,8 +235,11 @@ def push_url_metric(pushgateway_url: str, job_name: str, machine_name: str, dpas
 
 def main() -> int:
     if DONE_FLAG.exists():
-        log.info("Diagnostic already run (.diagnose_done exists). Delete flag to re-run.")
-        return 0
+        stored = DONE_FLAG.read_text(encoding="utf-8")
+        if f"version={DIAGNOSE_VERSION}" in stored:
+            log.info("Diagnostic v%s already run. Increment DIAGNOSE_VERSION to re-run.", DIAGNOSE_VERSION)
+            return 0
+        log.info("Diagnose version changed — re-running diagnostic.")
 
     log.info("Starting one-shot diagnostic...")
 
@@ -268,18 +274,27 @@ def main() -> int:
     except Exception as exc:
         log.warning("dpaste upload failed: %s", exc)
 
-    # Push URL back to Prometheus so it's visible without remote access
-    if dpaste_url and cfg["pushgateway_url"]:
+    # Push URL back to Prometheus so it's visible without remote access.
+    # Always push — even on dpaste failure — so Prometheus shows the diagnostic
+    # ran rather than giving no signal at all.
+    if cfg["pushgateway_url"]:
+        url_to_push = dpaste_url if dpaste_url else "DPASTE_FAILED"
+        if not dpaste_url:
+            log.warning(
+                "dpaste upload failed; pushing sentinel url='DPASTE_FAILED' "
+                "so the diagnostic run is visible in Prometheus."
+            )
         try:
             push_url_metric(
                 cfg["pushgateway_url"],
                 cfg["job_name"],
                 cfg["machine_name"],
-                dpaste_url,
+                url_to_push,
             )
             log.info(
-                "dpaste URL pushed to Prometheus. Query: "
+                "Diagnostic status pushed to Prometheus (url=%s). Query: "
                 "fridge_diagnostic_url{instance=\"%s\"}",
+                url_to_push,
                 cfg["machine_name"],
             )
         except Exception as exc:
@@ -288,7 +303,7 @@ def main() -> int:
     # Mark done
     try:
         DONE_FLAG.write_text(
-            f"Ran at {datetime.now().isoformat()}. dpaste: {dpaste_url}\n",
+            f"Ran at {datetime.now().isoformat()}. version={DIAGNOSE_VERSION}. dpaste: {dpaste_url}\n",
             encoding="utf-8",
         )
         log.info("Flag created: %s", DONE_FLAG)

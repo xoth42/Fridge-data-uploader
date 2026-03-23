@@ -79,10 +79,11 @@ try {
 # Periodically check if task needs updating (once per hour)
 Update-TaskIfNeeded *>$null
 
-# Run one-shot diagnostic if present and not yet done
+# Run one-shot diagnostic if present.
+# Python (diagnose.py) owns the "already done" check via DIAGNOSE_VERSION in
+# .diagnose_done — always invoke it so a version bump is actually honoured.
 $DiagnoseScript = Join-Path $ScriptDir "diagnose.py"
-$DiagnoseDoneFlag = Join-Path $ScriptDir ".diagnose_done"
-if ((Test-Path $DiagnoseScript) -and -not (Test-Path $DiagnoseDoneFlag)) {
+if (Test-Path $DiagnoseScript) {
     & $PythonExe $DiagnoseScript *>$null
 }
 
