@@ -70,6 +70,9 @@ try {
     # Try to update from git repository (non-blocking)
     # Suppress both stdout and stderr completely
     git pull *>$null
+
+    # Sync dependencies after any git update (no-op if already up to date)
+    & $PythonExe -m pip install -r (Join-Path $ScriptDir "requirements.txt") --quiet *>$null
     
 } catch {
     # Git update failed, but continue with metrics push

@@ -160,6 +160,50 @@ METRIC_METADATA: dict[str, dict] = {
         "group": "probe_control",
     },
     # ------------------------------------------------------------------
+    # CH* P -- vacuum pressures per channel (mbar)
+    # Confirmed present on Dodo (CH1/2/5/6). Other fridges TBD.
+    # ------------------------------------------------------------------
+    "ch1_p": {
+        "metric_name": "ch1_p_mbar",
+        "description": "50K flange vacuum pressure (ch1_p)",
+        "unit_suffix": "_mbar",
+        "grafana_unit": "pressurembar",
+        "group": "fridge_pressures",
+        "subgroup": "50K flange",
+    },
+    "ch2_p": {
+        "metric_name": "ch2_p_mbar",
+        "description": "4K flange vacuum pressure (ch2_p)",
+        "unit_suffix": "_mbar",
+        "grafana_unit": "pressurembar",
+        "group": "fridge_pressures",
+        "subgroup": "4K flange",
+    },
+    "ch5_p": {
+        "metric_name": "ch5_p_mbar",
+        "description": "Still vacuum pressure (ch5_p)",
+        "unit_suffix": "_mbar",
+        "grafana_unit": "pressurembar",
+        "group": "fridge_pressures",
+        "subgroup": "Still",
+    },
+    "ch6_p": {
+        "metric_name": "ch6_p_mbar",
+        "description": "MXC vacuum pressure (ch6_p)",
+        "unit_suffix": "_mbar",
+        "grafana_unit": "pressurembar",
+        "group": "fridge_pressures",
+        "subgroup": "MXC",
+    },
+    "ch9_p": {
+        "metric_name": "ch9_p_mbar",
+        "description": "CP vacuum pressure (ch9_p)",
+        "unit_suffix": "_mbar",
+        "grafana_unit": "pressurembar",
+        "group": "fridge_pressures",
+        "subgroup": "CP",
+    },
+    # ------------------------------------------------------------------
     # CH1 -- 50K flange
     # ------------------------------------------------------------------
     "ch1_t": {

@@ -8,6 +8,7 @@ from logging.handlers import RotatingFileHandler
 from datetime import date
 from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
@@ -33,6 +34,24 @@ log = logging.getLogger(__name__)
 _last_pushed_time = None
 
 # ---------------------------------------------------------------------------
+# Bluefors default filename patterns  ({date} replaced with "YY-MM-DD")
+# ---------------------------------------------------------------------------
+_DEFAULT_FILE_NAMING = {
+    "status":    "Status_{date}.log",
+    "flowmeter": "Flowmeter {date}.log",
+    "heaters":   "Heaters {date}.log",
+    "channels":  "Channels {date}.log",
+    "maxigauge": "maxigauge {date}.log",
+}
+
+
+def _resolve_filename(fridge_cfg: dict, key: str, date_str: str) -> str:
+    """Return the resolved filename for a file type, applying any per-fridge override."""
+    pattern = fridge_cfg.get("file_naming", {}).get(key, _DEFAULT_FILE_NAMING[key])
+    return pattern.replace("{date}", date_str)
+
+
+# ---------------------------------------------------------------------------
 # .env helpers
 # ---------------------------------------------------------------------------
 
@@ -42,6 +61,28 @@ def _require_env(var: str) -> str:
     if not value:
         raise ValueError(f"{var} is missing or empty in .env")
     return value
+
+
+def _load_fridge_config(machine_name: str) -> dict:
+    """Load the YAML fridge config for this machine.
+
+    Looks up fridge_configs/{name}.config by stripping the 'fridge-' prefix
+    from MACHINE_NAME (e.g. 'fridge-dodo' -> 'fridge_configs/dodo.config').
+    Returns an empty dict (all defaults) if the config file is not found.
+    """
+    config_name = machine_name.removeprefix("fridge-")
+    config_path = SCRIPT_DIR / "fridge_configs" / f"{config_name}.config"
+    if not config_path.exists():
+        log.warning(
+            "No fridge config found at %s — using defaults (all file types enabled, "
+            "standard Bluefors filenames, no channel label overrides)",
+            config_path,
+        )
+        return {}
+    with open(config_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    log.info("Loaded fridge config: %s", config_path.name)
+    return cfg
 
 
 def load_config(env_file: Path) -> dict:
@@ -150,9 +191,9 @@ def parse_status_line(line: str) -> dict[str, float]:
     return values
 
 
-# Regex to detect CH* T / CH* R filenames: e.g. "CH1 T 26-02-19.log"
+# Regex to detect CH* T / CH* R / CH* P filenames: e.g. "CH1 T 26-02-19.log"
 _CH_FILE_RE = re.compile(
-    r"^CH(\d+)\s+(T|R)\s+\d{2}-\d{2}-\d{2}\.log$",
+    r"^CH(\d+)\s+(T|R|P)\s+\d{2}-\d{2}-\d{2}\.log$",
     re.IGNORECASE,
 )
 
@@ -255,14 +296,24 @@ def parse_maxigauge_file(filepath: Path) -> dict[str, float]:
     return result
 
 
-def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
-    """Collect metrics from ALL Bluefors log files for the given date.
+def collect_all_metrics(
+    logs_dir: Path,
+    target_date: date,
+    fridge_cfg: dict,
+) -> tuple[dict[str, float], dict[str, str]]:
+    """Collect metrics from all Bluefors log files for the given date.
 
-    Each file parser is wrapped in an independent try/except so that a
-    missing or malformed file never prevents the other files from being read.
+    Uses the fridge config to:
+      - skip file types disabled in collect:
+      - resolve filenames via file_naming: (per-fridge overrides)
+      - supply channel subgroup labels from temperature/resistance/pressure_channels
 
-    Returns a flat dict of fully-qualified metric name -> float value where
-    each key already contains the appropriate unit suffix.
+    Each parser is wrapped in an independent try/except so a missing or
+    malformed file never blocks the others.
+
+    Returns:
+      all_metrics     : flat dict of metric name -> float value
+      subgroup_labels : metric name -> subgroup string (config channel label overrides)
     """
     date_str = target_date.strftime("%y-%m-%d")
     date_dir = logs_dir / date_str
@@ -270,20 +321,33 @@ def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
     if not date_dir.exists() or not date_dir.is_dir():
         raise FileNotFoundError(f"Today's date folder not found: {date_dir}")
 
+    collect = fridge_cfg.get("collect", {})
+
+    # Build channel label lookups from config (YAML keys may be ints).
+    def _ch_labels(section: str) -> dict[str, str]:
+        return {str(k): v for k, v in fridge_cfg.get(section, {}).items()}
+
+    temp_labels  = _ch_labels("temperature_channels")
+    res_labels   = _ch_labels("resistance_channels")
+    pres_labels  = _ch_labels("pressure_channels")
+
     all_metrics: dict[str, float] = {}
+    subgroup_labels: dict[str, str] = {}
 
     # ---- Status file ------------------------------------------------
-    status_path = date_dir / f"Status_{date_str}.log"
-    try:
-        raw_status = parse_status_line(read_last_line(status_path))
-        for raw_key, value in raw_status.items():
-            metric_name = get_metric_name_for_raw_key(raw_key)
-            all_metrics[metric_name] = value
-        log.info("Status file: parsed %d metric(s)", len(raw_status))
-    except Exception as exc:
-        log.error("Status file error (%s): %s", status_path.name, exc)
+    if collect.get("status", True):
+        status_filename = _resolve_filename(fridge_cfg, "status", date_str)
+        status_path = date_dir / status_filename
+        try:
+            raw_status = parse_status_line(read_last_line(status_path))
+            for raw_key, value in raw_status.items():
+                metric_name = get_metric_name_for_raw_key(raw_key)
+                all_metrics[metric_name] = value
+            log.info("Status file: parsed %d metric(s)", len(raw_status))
+        except Exception as exc:
+            log.error("Status file error (%s): %s", status_filename, exc)
 
-    # ---- CH* T and CH* R files (dynamic discovery) ------------------
+    # ---- CH* T, CH* R, CH* P files (dynamic discovery) -------------
     try:
         all_filenames = os.listdir(date_dir)
     except Exception as exc:
@@ -294,67 +358,80 @@ def collect_all_metrics(logs_dir: Path, target_date: date) -> dict[str, float]:
         m = _CH_FILE_RE.match(filename)
         if not m:
             continue
-        ch_num = m.group(1)
-        ch_type = m.group(2).lower()
-        # Build raw key (e.g. "ch1_t", "ch6_r") and resolve to output metric name.
+        ch_num  = m.group(1)
+        ch_type = m.group(2).lower()  # "t", "r", or "p"
+
         raw_key = f"ch{ch_num}_{ch_type}"
         metric_name = get_metric_name_for_raw_key(raw_key)
-        # Fallback for channels not yet in metadata: append unit suffix directly.
         if metric_name == raw_key:
-            unit = "kelvin" if ch_type == "t" else "ohms"
+            unit = {"t": "kelvin", "r": "ohms", "p": "mbar"}[ch_type]
             metric_name = f"{raw_key}_{unit}"
+
         filepath = date_dir / filename
         try:
             all_metrics[metric_name] = parse_channel_file(filepath)
             log.info("Channel file %s -> %s", filename, metric_name)
-            # CH6 T and CH9 T store sub-1K (mK-range) values as raw K.
-            # The description in metric_metadata notes this; no conversion applied.
             if ch_type == "t" and ch_num in ("6", "9"):
                 log.info(
-                    "  Note: %s is mK-range (value=%.3e K) -- raw K stored, see metric description",
+                    "  Note: %s is mK-range (value=%.3e K) -- raw K stored",
                     metric_name,
                     all_metrics[metric_name],
                 )
         except Exception as exc:
             log.error("Channel file error (%s): %s", filename, exc)
+            continue
+
+        # Apply subgroup label from config, overriding hardcoded metadata.
+        label_map = {"t": temp_labels, "r": res_labels, "p": pres_labels}[ch_type]
+        label = label_map.get(ch_num)
+        if label:
+            subgroup_labels[metric_name] = label
 
     # ---- Flowmeter --------------------------------------------------
-    flowmeter_path = date_dir / f"Flowmeter {date_str}.log"
-    try:
-        metric_name = get_metric_name_for_raw_key("flowmeter")
-        all_metrics[metric_name] = parse_flowmeter_file(flowmeter_path)
-        log.info("Flowmeter file: parsed %s", metric_name)
-    except Exception as exc:
-        log.error("Flowmeter file error (%s): %s", flowmeter_path.name, exc)
+    if collect.get("flowmeter", True):
+        flowmeter_filename = _resolve_filename(fridge_cfg, "flowmeter", date_str)
+        flowmeter_path = date_dir / flowmeter_filename
+        try:
+            metric_name = get_metric_name_for_raw_key("flowmeter")
+            all_metrics[metric_name] = parse_flowmeter_file(flowmeter_path)
+            log.info("Flowmeter file: parsed %s", metric_name)
+        except Exception as exc:
+            log.error("Flowmeter file error (%s): %s", flowmeter_filename, exc)
 
     # ---- Heaters ----------------------------------------------------
-    heaters_path = date_dir / f"Heaters {date_str}.log"
-    try:
-        heater_metrics = parse_heaters_file(heaters_path)
-        all_metrics.update(heater_metrics)
-        log.info("Heaters file: parsed %d heater metric(s)", len(heater_metrics))
-    except Exception as exc:
-        log.error("Heaters file error (%s): %s", heaters_path.name, exc)
+    if collect.get("heaters", True):
+        heaters_filename = _resolve_filename(fridge_cfg, "heaters", date_str)
+        heaters_path = date_dir / heaters_filename
+        try:
+            heater_metrics = parse_heaters_file(heaters_path)
+            all_metrics.update(heater_metrics)
+            log.info("Heaters file: parsed %d heater metric(s)", len(heater_metrics))
+        except Exception as exc:
+            log.error("Heaters file error (%s): %s", heaters_filename, exc)
 
     # ---- Channels (valves) ------------------------------------------
-    channels_path = date_dir / f"Channels {date_str}.log"
-    try:
-        valve_metrics = parse_channels_file(channels_path)
-        all_metrics.update(valve_metrics)
-        log.info("Channels file: parsed %d valve metric(s)", len(valve_metrics))
-    except Exception as exc:
-        log.error("Channels file error (%s): %s", channels_path.name, exc)
+    if collect.get("channels", True):
+        channels_filename = _resolve_filename(fridge_cfg, "channels", date_str)
+        channels_path = date_dir / channels_filename
+        try:
+            valve_metrics = parse_channels_file(channels_path)
+            all_metrics.update(valve_metrics)
+            log.info("Channels file: parsed %d valve metric(s)", len(valve_metrics))
+        except Exception as exc:
+            log.error("Channels file error (%s): %s", channels_filename, exc)
 
     # ---- Maxigauge --------------------------------------------------
-    maxigauge_path = date_dir / f"maxigauge {date_str}.log"
-    try:
-        gauge_metrics = parse_maxigauge_file(maxigauge_path)
-        all_metrics.update(gauge_metrics)
-        log.info("Maxigauge file: parsed %d pressure metric(s)", len(gauge_metrics))
-    except Exception as exc:
-        log.error("Maxigauge file error (%s): %s", maxigauge_path.name, exc)
+    if collect.get("maxigauge", True):
+        maxigauge_filename = _resolve_filename(fridge_cfg, "maxigauge", date_str)
+        maxigauge_path = date_dir / maxigauge_filename
+        try:
+            gauge_metrics = parse_maxigauge_file(maxigauge_path)
+            all_metrics.update(gauge_metrics)
+            log.info("Maxigauge file: parsed %d pressure metric(s)", len(gauge_metrics))
+        except Exception as exc:
+            log.error("Maxigauge file error (%s): %s", maxigauge_filename, exc)
 
-    return all_metrics
+    return all_metrics, subgroup_labels
 
 
 # ---------------------------------------------------------------------------
@@ -377,13 +454,16 @@ def push_metrics(
     pushgateway_url: str,
     job_name: str,
     machine_name: str,
+    subgroup_labels: dict[str, str] | None = None,
 ) -> None:
     """Push every key/value pair as a Gauge to the Pushgateway.
 
-    Uses get_description() for the HELP text and get_group() for the
-    subsystem label so each metric can be filtered in Grafana.
-    Adds display_name and subgroup labels so they are queryable in Grafana.
+    subgroup_labels provides per-metric subgroup overrides sourced from the
+    fridge config's channel label maps; falls back to hardcoded metadata.
     """
+    if subgroup_labels is None:
+        subgroup_labels = {}
+
     registry = CollectorRegistry()
 
     for metric_key, value in all_metrics.items():
@@ -391,7 +471,7 @@ def push_metrics(
         description = get_description(metric_key)
         group = get_group(metric_key)
         display_name = get_display_name(metric_key)
-        subgroup = get_subgroup(metric_key)
+        subgroup = subgroup_labels.get(metric_key) or get_subgroup(metric_key)
         gauge = Gauge(
             safe_name,
             description,
@@ -432,11 +512,14 @@ def main() -> int:
         log.error("Configuration error: %s", exc)
         return 1
 
+    fridge_cfg = _load_fridge_config(cfg["machine_name"])
+
     # ---- Phase 1b: check if we have new data (avoid pushing stale data) ---
     target_date = date.today()
     date_str = target_date.strftime("%y-%m-%d")
     date_dir = cfg["logs_dir"] / date_str
-    status_path = date_dir / f"Status_{date_str}.log"
+    status_filename = _resolve_filename(fridge_cfg, "status", date_str)
+    status_path = date_dir / status_filename
     try:
         if status_path.exists():
             status_line = read_last_line(status_path)
@@ -448,7 +531,9 @@ def main() -> int:
 
     # ---- Phase 2: collect metrics from all log files (READ-ONLY) -------
     try:
-        all_metrics = collect_all_metrics(cfg["logs_dir"], target_date)
+        all_metrics, subgroup_labels = collect_all_metrics(
+            cfg["logs_dir"], target_date, fridge_cfg
+        )
     except Exception as exc:
         log.error("Data collection error: %s", exc)
         return 1
@@ -467,6 +552,7 @@ def main() -> int:
             pushgateway_url=cfg["pushgateway_url"],
             machine_name=cfg["machine_name"],
             job_name=cfg["job_name"],
+            subgroup_labels=subgroup_labels,
         )
     except ServerUnavailableError as exc:
         log.error("Push failed: server down or unreachable at %s: %s", cfg["pushgateway_url"], exc)
