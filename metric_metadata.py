@@ -58,14 +58,14 @@ METRIC_METADATA: dict[str, dict] = {
     # ------------------------------------------------------------------
     "cpatempwi": {
         "metric_name": "cpatempwi_celsius",
-        "description": "Compressor water inlet temperature (cpatempwi)",
+        "description": "Compressor water inlet temperature in °C (cpatempwi); NOTE: Dodo sensor reports °F despite the column label — push_metrics.py converts to °C for fridge-dodo",
         "unit_suffix": "_celsius",
         "grafana_unit": "celsius",
         "group": "compressor",
     },
     "cpatempwo": {
         "metric_name": "cpatempwo_celsius",
-        "description": "Compressor water outlet temperature (cpatempwo)",
+        "description": "Compressor water outlet temperature in °C (cpatempwo); NOTE: Dodo sensor reports °F despite the column label — push_metrics.py converts to °C for fridge-dodo",
         "unit_suffix": "_celsius",
         "grafana_unit": "celsius",
         "group": "compressor",

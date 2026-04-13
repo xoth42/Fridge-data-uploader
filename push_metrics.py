@@ -545,6 +545,16 @@ def main() -> int:
         log.error("No metrics collected -- nothing to push")
         return 1
 
+    # ---- Phase 2b: machine-specific corrections ----------------------------
+    # Dodo's cooling water sensor physically reports °F but the file labels the
+    # column as Celsius.  Convert to true °C here so the pushed metric is
+    # consistent with Manny and no dashboard-side workaround is needed.
+    if cfg["machine_name"] == "fridge-dodo":
+        for key in ("cpatempwi_celsius", "cpatempwo_celsius"):
+            if key in all_metrics:
+                all_metrics[key] = (all_metrics[key] - 32.0) * 5.0 / 9.0
+                log.info("Applied °F→°C correction for %s (Dodo sensor mislabelled as Celsius)", key)
+
     # ---- Phase 3: push to Prometheus Pushgateway -----------------------
     try:
         push_metrics(
