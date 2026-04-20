@@ -514,20 +514,53 @@ def main() -> int:
 
     fridge_cfg = _load_fridge_config(cfg["machine_name"])
 
-    # ---- Phase 1b: check if we have new data (avoid pushing stale data) ---
+    # ---- Phase 1b: guard against pushing incomplete data -------------------
+    # push_to_gateway does a full PUT/replace of all metrics for the
+    # job+instance group.  If the Status file is absent or empty (e.g. during
+    # the midnight date-rollover — on slow fridges like Dodo the new-day file
+    # may not appear for ~15 min), a push without Status metrics would DELETE
+    # them from Pushgateway and trigger false "no data" alerts on the server.
+    # Skipping the push leaves all previously-published values intact until
+    # the file arrives.
     target_date = date.today()
     date_str = target_date.strftime("%y-%m-%d")
     date_dir = cfg["logs_dir"] / date_str
     status_filename = _resolve_filename(fridge_cfg, "status", date_str)
     status_path = date_dir / status_filename
-    try:
-        if status_path.exists():
+
+    if fridge_cfg.get("collect", {}).get("status", True):
+        if not status_path.exists():
+            log.info(
+                "Status file not yet available (%s) — skipping push to preserve "
+                "Pushgateway data.",
+                status_filename,
+            )
+            return 0
+
+        try:
             status_line = read_last_line(status_path)
-            if not is_new_data(status_line):
-                log.info("Data is stale (timestamp unchanged). Skipping push.")
-                return 0
-    except Exception as exc:
-        log.warning("Could not check for stale data: %s. Proceeding anyway.", exc)
+        except ValueError:
+            # File exists but is empty — same situation as absent.
+            log.info(
+                "Status file exists but is empty (%s) — skipping push to preserve "
+                "Pushgateway data.",
+                status_filename,
+            )
+            return 0
+        except Exception as exc:
+            log.warning(
+                "Could not read Status file (%s): %s. Proceeding anyway.",
+                status_filename, exc,
+            )
+            status_line = None
+
+        if status_line is not None:
+            try:
+                if not is_new_data(status_line):
+                    log.info("Data is stale (timestamp unchanged). Skipping push.")
+                    return 0
+            except Exception as exc:
+                log.warning("Could not check for stale data: %s. Proceeding anyway.", exc)
 
     # ---- Phase 2: collect metrics from all log files (READ-ONLY) -------
     try:
