@@ -1,122 +1,284 @@
 # Fridge Data Uploader
 
-Reads all available Bluefors fridge sensor data and pushes metrics to a Prometheus Pushgateway every minute.
+Windows-side uploader for Bluefors fridge log files. It reads the latest values
+from the current day's Bluefors log folder and pushes them to the lab
+Prometheus Pushgateway once per minute.
 
+This repo is the client half of the fridge monitoring system. The server stack
+scrapes Pushgateway and displays the data in Grafana.
 
-## Prerequisites
+## Current Shape
 
-- Windows machine with Python installed (Microsoft Store version is fine)
-- Network access to the EC2 Pushgateway
+The live code is small:
 
-## Python Version Troubleshooting & Manual Override
+| Path | Purpose |
+| --- | --- |
+| `push_metrics.py` | Main one-shot collector and Pushgateway uploader |
+| `metric_metadata.py` | Metric names, descriptions, Grafana units, groups, and default channel labels |
+| `fridge_configs/*.config` | Per-fridge YAML for channel labels, file naming, and file-type enable/disable |
+| `.env.example` | Template for local machine config |
+| `server.env` | Shared Pushgateway target |
+| `START_LOGGING.bat` | Double-click entrypoint that requests admin and runs setup |
+| `setup.ps1` | Installs dependencies, test-runs the uploader, and registers the scheduled task |
+| `run_with_git_update.ps1` | Silent scheduled-task runner; updates repo/deps, runs diagnostics, then pushes metrics |
+| `run_silent.vbs` | Hides the PowerShell scheduled-task window |
+| `diagnose.py` | One-shot Bluefors log structure scanner and diagnostic URL publisher |
 
-This script requires **Python 3.9 or newer** due to usage of advanced type hints (e.g., `dict[str, float]`).
+Ignore old notes or comments that talk about EC2-specific setup or `.env`
+owning every setting. The live code reads Pushgateway configuration from
+`server.env` and machine-specific settings from `.env`.
 
-If an older Python (e.g., 3.7) is detected, the script will attempt to automatically find and re-run itself with a newer Python (searching for `python3.13`, `python3.12`, etc.).
+## Requirements
 
-**Manual override:**
+- Windows data machine with access to the Bluefors log directory
+- Python 3.9 or newer
+- Git, if you want the scheduled task's automatic `git pull` to work
+- Network access from the fridge machine to the Pushgateway host and port
 
-If automatic detection fails, you can specify the path to a suitable Python executable in your `.env` file:
-
-```
-PYTHON_EXE_OVERRIDE=C:\Path\To\python3.13.exe
-```
-
-This will force the script to use the designated Python interpreter.
-
-If you see errors like `TypeError: 'type' object is not subscriptable`, this means your Python is too old. Install Python >=3.9 and/or set `PYTHON_EXE_OVERRIDE` as above.
+Python dependencies are installed from `requirements.txt` by `setup.ps1`.
 
 ## Quick Start
 
-1. **Clone the repo** to a folder on the Windows machine, e.g.:
-   ```
-   C:\Users\<you>\Fridge-data-uploader
-   ```
+On the fridge computer:
 
-2. **Copy `.env.example` to `.env`** and fill in real values:
-   ```
-   copy .env.example .env
-   ```
-   Then open `.env` in a text editor and set the correct path and URL.
+```bat
+copy .env.example .env
+notepad .env
+notepad server.env
+```
 
-3. **Run `START_LOGGING` (double click)** and give admin.
-   Admin rights are required to register a Windows Task Scheduler job.
+Set `.env` for this machine:
 
-4. **That's it.** The setup script installs dependencies, does a test run, and registers a Windows Task Scheduler job that runs silently every minute, and installs updates from this repo.
+```dotenv
+FRIGE_LOGS_DIR=C:\Users\WangLab\Bluefors logs
+MACHINE_NAME=fridge-manny
+# PUSH_JOB_NAME=sensor_data
+# HASTEBIN_TOKEN=
+# PYTHON_EXE_OVERRIDE=C:\Path\To\python.exe
+```
+
+Set `server.env` to the monitoring server's Pushgateway:
+
+```dotenv
+PUSHGATEWAY_URL=zickers-fridge.duckdns.org:9091
+```
+
+Then double-click:
+
+```text
+START_LOGGING.bat
+```
+
+It requests Administrator privileges because `setup.ps1` registers a Windows
+Scheduled Task named `PushFridgeMetrics`.
+
+## How It Runs
+
+`setup.ps1` does a one-time setup:
+
+- verifies `.env` exists
+- finds Python 3.9 or newer, respecting `PYTHON_EXE_OVERRIDE` when set
+- installs `requirements.txt`
+- runs `push_metrics.py` once with visible output
+- removes any old `PushFridgeMetrics` task
+- finds `pythonw.exe`
+- registers a silent scheduled task that runs every minute
+- attempts a final `git pull`
+
+The scheduled task runs:
+
+```text
+wscript.exe -> run_silent.vbs -> run_with_git_update.ps1 -> push_metrics.py
+```
+
+On each scheduled run, `run_with_git_update.ps1` silently:
+
+- runs `git pull`
+- syncs Python dependencies from `requirements.txt`
+- refreshes the scheduled task wrapper if needed
+- runs `diagnose.py`
+- runs `push_metrics.py`
+
+`diagnose.py` is version-gated by `.diagnose_done`; it only scans again when
+`DIAGNOSE_VERSION` changes or the flag is deleted.
+
+## Configuration
+
+### `.env`
+
+Required:
+
+- `FRIGE_LOGS_DIR`: top-level Bluefors logs directory. The misspelling is
+  intentional because the code reads this exact variable.
+- `MACHINE_NAME`: Prometheus instance label and fridge config selector, for
+  example `fridge-manny` or `fridge-dodo`.
+
+Optional:
+
+- `PUSH_JOB_NAME`: Prometheus Pushgateway job label, default `sensor_data`.
+- `HASTEBIN_TOKEN`: lets `diagnose.py` upload a diagnostic report.
+- `PYTHON_EXE_OVERRIDE`: full path to a Python 3.9+ executable.
+
+### `server.env`
+
+Required:
+
+- `PUSHGATEWAY_URL`: Pushgateway host and port. Do not include `/metrics`.
+
+Example:
+
+```dotenv
+PUSHGATEWAY_URL=zickers-fridge.duckdns.org:9091
+```
+
+### `fridge_configs/`
+
+`push_metrics.py` maps `MACHINE_NAME` to a fridge config by removing the
+`fridge-` prefix:
+
+```text
+fridge-manny -> fridge_configs/manny.config
+fridge-dodo  -> fridge_configs/dodo.config
+fridge-sid   -> fridge_configs/sid.config
+```
+
+These YAML files can:
+
+- label temperature, resistance, and pressure channels
+- disable file types that a fridge does not produce
+- override Bluefors filename patterns
+
+Current notes:
+
+- Manny has CH1, CH2, CH5, CH6, and CH9 labels configured.
+- Dodo disables `Channels` collection and uses `heaters_{date}.log`.
+- Sid is present but incomplete; channel layout is not confirmed.
 
 ## What Gets Collected
 
-The script reads the following files from today's Bluefors date folder (`YY-MM-DD/`) and pushes them as Prometheus Gauges:
+For today's Bluefors date folder (`YY-MM-DD`), the uploader reads the latest
+line from each available source:
 
-| Source file | Metrics | Notes |
-|---|---|---|
-| `Status_YY-MM-DD.log` | Compressor pressures/temps, turbo pump speed/power, scroll pump, control pressure | Key-value CSV |
-| `CH1 T / CH1 R` | `ch1_t_kelvin`, `ch1_r_ohms` | 50K flange |
-| `CH2 T / CH2 R` | `ch2_t_kelvin`, `ch2_r_ohms` | 4K flange |
-| `CH5 T / CH5 R` | `ch5_t_kelvin`, `ch5_r_ohms` | Still |
-| `CH6 T / CH6 R` | `ch6_t_kelvin`, `ch6_r_ohms` | MXC (mK-range, stored in K) |
-| `CH9 T / CH9 R` | `ch9_t_kelvin`, `ch9_r_ohms` | FSE (mK-range, stored in K) |
-| `Flowmeter YY-MM-DD.log` | `flowmeter_mmol_per_s` | Mixture flow rate |
-| `Heaters YY-MM-DD.log` | `heater_0_watts`, `heater_1_watts`, ... | Per-channel heater power |
-| `Channels YY-MM-DD.log` | `valve_v1`, `valve_v2`, ..., `valve_compressor`, ... | Valve/device on-off states (0 or 1) |
-| `maxigauge YY-MM-DD.log` | `maxigauge_ch1_pressure_mbar` ... `maxigauge_ch6_pressure_mbar` | 6-channel pressure gauge |
+| Source | Metrics |
+| --- | --- |
+| `Status_{date}.log` | Compressor pressures, temperatures, current, hours, turbo pump, scroll pump, control pressure |
+| `CH* T {date}.log` | Channel temperatures, pushed as `ch*_t_kelvin` |
+| `CH* R {date}.log` | Channel resistances, pushed as `ch*_r_ohms` |
+| `CH* P {date}.log` | Channel pressures, pushed as `ch*_p_mbar` |
+| `Flowmeter {date}.log` | `flowmeter_mmol_per_s` |
+| `Heaters {date}.log` | `heater_<id>_watts` |
+| `Channels {date}.log` | `valve_<name>` states as `0` or `1` |
+| `maxigauge {date}.log` | `maxigauge_ch*_pressure_mbar` |
 
-New CH* files added by Bluefors are picked up automatically.
+CH files are discovered dynamically, so new `CH* T`, `CH* R`, and `CH* P`
+files are picked up without editing the code.
 
-> **Note:** The channel-to-sensor label assignments (50K flange, 4K flange, Still, MXC, FSE) and unit assumptions are preliminary guesses based on available documentation. They will be reviewed by experienced technicians and may change as the data is validated.
+Each metric is pushed with labels:
 
-## Metric Naming Convention
+- `instance`: from `MACHINE_NAME`, via Pushgateway grouping key
+- `subsystem`: from `metric_metadata.py`
+- `display_name`: from `metric_metadata.py`
+- `subgroup`: from fridge config when available, otherwise metadata default
 
-All metric names follow the pattern `<key>_<unit>`, for example:
-- `cpahpa_mbar` -- compressor high pressure actual
-- `ch6_t_kelvin` -- MXC temperature (raw K value)
-- `tc400actualspd_hz` -- turbo pump speed
-- `flowmeter_mmol_per_s` -- mixture flow rate
+The uploader also pushes `last_push_timestamp_seconds` on every successful
+upload. The server uses this for stale-data alerts.
 
-Each metric includes a human-readable HELP string (visible in Pushgateway) that shows the source file and raw key name for easy verification.
+## Guardrails
 
-## Verifying It Works
+The uploader is read-only against the Bluefors log directory.
 
-- Check `push_metrics.log` in the script directory for per-run output.
-- Visit `http://<PUSHGATEWAY_URL>/metrics` in a browser to see pushed metrics.
+Each parser fails independently. A missing optional file logs an error but does
+not stop other files from being collected.
 
-## Notes
+The uploader skips a push when the current day's Status file is missing, empty,
+or has not advanced to a new minute. This matters because `push_to_gateway`
+replaces the whole `job` plus `instance` group; pushing an incomplete set during
+midnight rollover would erase still-valid values from Pushgateway.
 
-- The script is **strictly read-only** against the fridge logs directory.
-- `FRIGE_LOGS_DIR` should point to the **top-level Bluefors Logs folder** (e.g. `C:\Users\WangLab\Bluefors logs`). The script automatically navigates the date-based subdirectory structure.
-- The scheduled task uses `pythonw.exe` so there is no visible CMD window.
-- Each file parser fails independently -- one missing or malformed file does not prevent other files from being collected.
+Dodo-specific correction: `push_metrics.py` converts `cpatempwi_celsius` and
+`cpatempwo_celsius` from Fahrenheit to Celsius because Dodo's cooling-water
+sensor is mislabeled in the source log.
 
-```
-Bluefors logs/
-+-- 26-02-19/
-|   +-- Status_26-02-19.log
-|   +-- CH1 T 26-02-19.log
-|   +-- CH1 R 26-02-19.log
-|   +-- ...
-|   +-- Flowmeter 26-02-19.log
-|   +-- Heaters 26-02-19.log
-|   +-- Channels 26-02-19.log
-|   +-- maxigauge 26-02-19.log
-+-- 26-02-18/
-|   +-- ...
-```
+## Manual Commands
 
-## File Overview
+Run one visible push:
 
-| File | Purpose |
-|---|---|
-| `push_metrics.py` | Main script -- collects all data sources and pushes metrics |
-| `metric_metadata.py` | Metadata dict: descriptions, unit suffixes, Grafana units, groups |
-| `setup.ps1` | One-shot setup: installs deps, test run, registers silent scheduled task |
-| `requirements.txt` | Python dependencies |
-| `.env.example` | Template for the `.env` config file |
-| `.env` | Your local config (gitignored -- never committed) |
-| `push_metrics.log` | Runtime log (gitignored -- written locally) |
-
-## Uninstall
-
-To remove the scheduled task (run from an elevated/Administrator PowerShell):
 ```powershell
-Unregister-ScheduledTask -TaskName PushFridgeMetrics
+python .\push_metrics.py
 ```
+
+Run setup from an elevated PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+```
+
+Inspect the scheduled task:
+
+```powershell
+Get-ScheduledTask -TaskName PushFridgeMetrics
+```
+
+Remove the scheduled task:
+
+```powershell
+Unregister-ScheduledTask -TaskName PushFridgeMetrics -Confirm:$false
+```
+
+Force diagnostics to run again:
+
+```powershell
+Remove-Item .\.diagnose_done
+python .\diagnose.py
+```
+
+## Logs And Verification
+
+Local files written by the uploader:
+
+- `push_metrics.log`: rotating runtime log for `push_metrics.py`
+- `diagnose.log`: rotating log for `diagnose.py`
+- `diagnose_report.txt`: latest local diagnostic report
+- `.diagnose_done`: diagnostic completion/version marker
+- `.last_task_update_check`: scheduled-task wrapper refresh marker
+
+Verification points:
+
+```powershell
+Get-Content .\push_metrics.log -Tail 80
+```
+
+From a machine that can reach the monitoring server:
+
+```text
+http://<PUSHGATEWAY_URL>/metrics
+```
+
+Useful Prometheus queries on the server:
+
+```promql
+last_push_timestamp_seconds{job="sensor_data",instance="fridge-manny"}
+fridge_diagnostic_url{instance="fridge-dodo"}
+```
+
+## Bluefors Folder Shape
+
+`FRIGE_LOGS_DIR` should point to the top-level folder that contains date
+subdirectories:
+
+```text
+Bluefors logs/
+  26-02-19/
+    Status_26-02-19.log
+    CH1 T 26-02-19.log
+    CH1 R 26-02-19.log
+    Flowmeter 26-02-19.log
+    Heaters 26-02-19.log
+    Channels 26-02-19.log
+    maxigauge 26-02-19.log
+  26-02-18/
+    ...
+```
+
+Per-fridge config can override filename patterns when a fridge differs from the
+Bluefors defaults.
