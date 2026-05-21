@@ -587,7 +587,8 @@ def main() -> int:
             if key in all_metrics: # if we are reporting them..
                 raw = all_metrics[key]
                 if raw == 0.0:
-                    log.info(f"{key} raw value is 0 — sensor not yet reporting, skipping F→°C conversion.")
+                    del all_metrics[key]
+                    log.info(f"{key} raw value is 0 (compressor sensor issue/no reading) — excluded from push.")
                 else:
                     all_metrics[key] = (raw - 32.0) * 5.0 / 9.0 # convert to C
                     log.info(f"{key} F→°C correction applied: {raw}°F → {all_metrics[key]}°C")
