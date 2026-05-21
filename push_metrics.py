@@ -583,11 +583,14 @@ def main() -> int:
     # column as Celsius.  Convert to true °C here so the pushed metric is
     # consistent with Manny and no dashboard-side workaround is needed.
     if cfg["machine_name"] == "fridge-dodo": # only on dodo...
-        for key in ("cpatempwi_celsius", "cpatempwo_celsius"): # for the two water temps that we care about, which are reported in F, but labled as C, 
+        for key in ("cpatempwi_celsius", "cpatempwo_celsius"): # for the two water temps that we care about, which are reported in F, but labled as C,
             if key in all_metrics: # if we are reporting them..
-                tmp = all_metrics[key]
-                all_metrics[key] = (all_metrics[key] - 32.0) * 5.0 / 9.0 # convert to C
-                log.info(f"{key} F→°C correction applied: {tmp}°F → {all_metrics[key]}°C")
+                raw = all_metrics[key]
+                if raw == 0.0:
+                    log.info(f"{key} raw value is 0 — sensor not yet reporting, skipping F→°C conversion.")
+                else:
+                    all_metrics[key] = (raw - 32.0) * 5.0 / 9.0 # convert to C
+                    log.info(f"{key} F→°C correction applied: {raw}°F → {all_metrics[key]}°C")
 
     # ---- Phase 3: push to Prometheus Pushgateway -----------------------
     try:
