@@ -197,11 +197,11 @@ METRIC_METADATA: dict[str, dict] = {
     },
     "ch9_p": {
         "metric_name": "ch9_p_mbar",
-        "description": "CP vacuum pressure (ch9_p)",
+        "description": "FSE vacuum pressure (ch9_p)",
         "unit_suffix": "_mbar",
         "grafana_unit": "pressurembar",
         "group": "fridge_pressures",
-        "subgroup": "CP",
+        "subgroup": "FSE",
     },
     # ------------------------------------------------------------------
     # CH1 -- 50K flange
