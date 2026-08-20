@@ -81,6 +81,9 @@ function Invoke-Bounded {
     } else {
         # Timed out -- kill the whole process tree so nothing lingers/piles up.
         & taskkill /T /F /PID $proc.Id *>$null
+        # Allow a small delay for the process tree to terminate gracefully before
+        # checking again. This prevents potential race conditions with file handles.
+        Start-Sleep -Milliseconds 100
         try { $proc.WaitForExit(5000) | Out-Null } catch {}
         Wlog ("{0}: TIMEOUT after {1}s -- killed" -f $Label, $TimeoutSec)
         $result = $false
